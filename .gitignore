@@ -20,6 +20,9 @@
 /[Uu]ser[Ss]ettings/
 *.log
 
+# RRX agent NDJSON traces (debug sessions — do not commit)
+/[Aa]ssets/RRX/EditorDebug/
+
 # By default unity supports Blender asset imports, *.blend1 blender files do not need to be committed to version control.
 *.blend1
 *.blend1.meta

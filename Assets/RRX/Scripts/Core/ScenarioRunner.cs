@@ -31,6 +31,10 @@ namespace RRX.Core
         void Awake()
         {
             _telemetry = new SessionTelemetry();
+            if (OnStateChanged == null)
+                OnStateChanged = new UnityEvent<ScenarioState>();
+            if (OnActionHandled == null)
+                OnActionHandled = new UnityEvent<ScenarioAction, string>();
         }
 
         void Start()

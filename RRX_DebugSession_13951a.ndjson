@@ -1,0 +1,3 @@
+{"sessionId":"13951a","hypothesisId":"H0","location":"RRXDemoSceneWizard.RunFullMrDemoPipeline","message":"pipeline_started","data":{"projectRoot":"/Users/kyle/Desktop/HackathonXR"},"timestamp":1776548980962}
+{"sessionId":"13951a","hypothesisId":"H3","location":"RRXDemoSceneWizard.EnsureXrOriginFromPrefabOrMenu","message":"xr_origin_already_present","data":{"present":true},"timestamp":1776548980967}
+{"sessionId":"13951a","hypothesisId":"H4","location":"RRXDemoSceneWizard.EnsureLocomotionAndCollision","message":"input_actions_asset","data":{"loaded":true},"timestamp":1776548980969}

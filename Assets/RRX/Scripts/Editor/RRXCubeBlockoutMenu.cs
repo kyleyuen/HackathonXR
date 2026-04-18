@@ -399,7 +399,7 @@ namespace RRX.Editor
                     float edgeHalf = midStoreA * tanHalf * 0.72f;
                     var tangent = new Vector3(-dir.z, 0f, dir.x);
                     int seed = e * 7919 + f * 10007;
-                    var rng = new Random(seed);
+                    var rng = new System.Random(seed);
 
                     for (var k = 0; k < 3; k++)
                     {
@@ -430,7 +430,7 @@ namespace RRX.Editor
         }
 
         static void BuildClothingRack(Transform parent, string name, Vector3 pos, float yawRad, Material mat,
-            Random rng)
+            System.Random rng)
         {
             var root = new GameObject(name);
             root.transform.SetParent(parent, false);

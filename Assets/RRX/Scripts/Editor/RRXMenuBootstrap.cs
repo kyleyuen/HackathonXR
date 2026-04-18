@@ -14,8 +14,8 @@ static class RRXMenuBootstrap
         EditorUtility.DisplayDialog(
             "RRX",
             "If this dialog appears, RRX Editor scripts are loading.\n\n" +
-            "Use:\n• Window → RRX → Setup Demo In Active Scene\n" +
-            "• Or the top menu bar item RRX (same actions)\n\n" +
+            "Use:\n• RRX → Build Complete MR Scene (Auto)\n" +
+            "• Or Window → RRX → Build Complete MR Scene (Auto)\n\n" +
             "If you do not see any RRX entries, open Console (Ctrl/Cmd+Shift+C) and fix red compile errors first.",
             "OK");
     }
