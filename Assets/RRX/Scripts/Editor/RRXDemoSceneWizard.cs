@@ -72,6 +72,8 @@ namespace RRX.Editor
 
         static void SetupDemoInternal()
         {
+            var playR = RRXPlayArea.RadiusMeters;
+
             EnsureXrInteractionManager();
             EnsureXrOriginFromPrefabOrMenu();
             DisableStandaloneMainCameraIfXrRigPresent();
@@ -82,7 +84,7 @@ namespace RRX.Editor
                           Undo.AddComponent<ScenarioDebugHotkeys>(scenario);
 
             var patient = EnsureGameObject("RRX_Patient");
-            patient.transform.position = new Vector3(0f, 0f, 3f);
+            patient.transform.position = new Vector3(0f, 0f, playR * 0.58f);
             var presenter = patient.GetComponent<PatientPresenter>() ?? Undo.AddComponent<PatientPresenter>(patient);
 
             EnsurePatientAnimator(patient, presenter);
@@ -90,10 +92,10 @@ namespace RRX.Editor
             BindSerialized(runner, "_patient", presenter);
             BindSerialized(hotkeys, "_runner", runner);
 
-            BuildInteractionZone(runner);
-            BuildGrabCube(runner, "RRX_Prop_Phone", new Vector3(0.45f, 0.9f, 2.6f),
+            BuildInteractionZone(runner, playR);
+            BuildGrabCube(runner, "RRX_Prop_Phone", new Vector3(0.45f, 0.9f, playR * 0.52f),
                 new Vector3(0.12f, 0.03f, 0.06f), ScenarioAction.Call911);
-            BuildGrabCube(runner, "RRX_Prop_Narcan", new Vector3(-0.45f, 0.9f, 2.6f),
+            BuildGrabCube(runner, "RRX_Prop_Narcan", new Vector3(-0.45f, 0.9f, playR * 0.52f),
                 new Vector3(0.08f, 0.04f, 0.04f), ScenarioAction.AdministerNarcan);
 
             EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
@@ -154,10 +156,10 @@ namespace RRX.Editor
             }
         }
 
-        static void BuildInteractionZone(ScenarioRunner runner)
+        static void BuildInteractionZone(ScenarioRunner runner, float playRadiusMeters)
         {
             var go = EnsureGameObject("RRX_Zone_CheckResponsiveness");
-            go.transform.position = new Vector3(0f, 1f, 3f);
+            go.transform.position = new Vector3(0f, 1f, playRadiusMeters * 0.5f);
 
             // RequireComponent(Collider) on ScenarioTriggerAction can add a non-Box collider; always ensure BoxCollider.
             var box = go.GetComponent<BoxCollider>();
