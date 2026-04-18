@@ -1,0 +1,14 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1045 &1
+EditorBuildSettings:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Scenes:
+  - enabled: 1
+    path: Assets/RRX/Scenes/RRX_Overdose.unity
+    guid: 52f45ea27b14547c99da6e2733ac2d70
+  m_configObjects:
+    com.unity.xr.arfoundation.simulation_settings: {fileID: 11400000, guid: 300eeadbb740242e7b5abf0b407043b1, type: 2}
+    com.unity.xr.management.loader_settings: {fileID: 11400000, guid: d53c80b80a51f4d99b2b419e60d9e448, type: 2}
+    com.unity.xr.openxr.settings4: {fileID: 11400000, guid: 606f4af1c5fe642308d7ea435e1c87b2, type: 2}
