@@ -38,7 +38,7 @@ namespace RRX.Editor
             var origin = Object.FindObjectOfType<XROrigin>();
             if (origin != null)
                 Selection.activeGameObject = origin.gameObject;
-            Debug.Log("[RRX] Minimal XR (walk + turn) ready. Save the scene (Ctrl/Cmd+S).");
+            Debug.Log("[RRX] Minimal XR + plaza blockout ready. Save the scene (Ctrl/Cmd+S).");
         }
 
         static void RunMinimalXrPipeline()
@@ -49,6 +49,7 @@ namespace RRX.Editor
             StripPackagedLocomotionSubtreeIfPresent();
             EnsureLocomotionAndCollision();
             DisableStarterTeleportInteractors();
+            RRXCubeBlockoutMenu.RunBlockoutGeneration();
             RRXMrCameraMenu.TryApplyMrCameraHints(showDialogIfNoOrigin: false);
         }
 

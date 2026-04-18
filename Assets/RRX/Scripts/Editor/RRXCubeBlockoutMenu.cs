@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using RRX.Core;
 using UnityEditor;
@@ -46,6 +47,36 @@ namespace RRX.Editor
             RunBlockoutGeneration();
         }
 
+        [MenuItem("RRX/Strip Legacy Plaza Elevator From Active Scene", false, 42)]
+        [MenuItem("Window/RRX/Strip Legacy Plaza Elevator From Active Scene", false, 42)]
+        static void StripLegacyElevatorFromScene()
+        {
+            var found = new List<GameObject>();
+
+            void Walk(Transform t)
+            {
+                if (t.name == "Plaza_ElevatorCore")
+                    found.Add(t.gameObject);
+                for (var i = 0; i < t.childCount; i++)
+                    Walk(t.GetChild(i));
+            }
+
+            var scene = SceneManager.GetActiveScene();
+            foreach (var root in scene.GetRootGameObjects())
+                Walk(root.transform);
+
+            foreach (var go in found)
+                Undo.DestroyObjectImmediate(go);
+
+            if (found.Count > 0)
+            {
+                EditorSceneManager.MarkSceneDirty(scene);
+                Debug.Log($"[RRX] Removed {found.Count} Plaza_ElevatorCore object(s). Save the scene if you want this permanent.");
+            }
+            else
+                Debug.Log("[RRX] No Plaza_ElevatorCore found in the active scene.");
+        }
+
         /// <summary>Called by menu and <see cref="RRXDemoSceneWizard"/> full auto-build.</summary>
         public static void RunBlockoutGeneration()
         {
@@ -84,7 +115,6 @@ namespace RRX.Editor
             BuildOuterCurtainWall(root.transform, aStoreOuter, interiorWallMat);
             BuildRailingsAllFloors(root.transform, aInner, accentMat);
             BuildCornerColumns(root.transform, aStoreOuter, interiorWallMat);
-            BuildElevatorCore(root.transform, R, interiorWallMat, accentMat);
             BuildStoreInteriors(root.transform, aInner, aWalkOuter, aStoreOuter, propMat, interiorWallMat, accentMat);
             BuildPlazaProps(root.transform, R, propMat, accentMat, interiorWallMat);
             BuildPlazaExtraFurniture(root.transform, R, propMat, interiorWallMat);
@@ -404,34 +434,6 @@ namespace RRX.Editor
                 col.transform.localPosition = new Vector3(Mathf.Cos(ang) * Rv, yC, Mathf.Sin(ang) * Rv);
                 col.transform.localScale = new Vector3(0.65f, colH * 0.5f, 0.65f);
                 ApplyMat(col, structureMat);
-            }
-        }
-
-        static void BuildElevatorCore(Transform parent, float playR, Material shaftMat, Material accentMat)
-        {
-            var core = new GameObject("Plaza_ElevatorCore");
-            core.transform.SetParent(parent, false);
-            Undo.RegisterCreatedObjectUndo(core, "Plaza Elevator Core");
-
-            var offset = new Vector3(-playR * 0.38f, 0f, playR * 0.28f);
-            float h = MallFloorCount * FloorToFloor + 0.6f;
-            var shaft = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-            shaft.name = "Elevator_Shaft";
-            shaft.transform.SetParent(core.transform, false);
-            Undo.RegisterCreatedObjectUndo(shaft, shaft.name);
-            shaft.transform.localPosition = offset + Vector3.up * (h * 0.5f);
-            shaft.transform.localScale = new Vector3(1.9f, h * 0.5f, 1.9f);
-            ApplyMat(shaft, shaftMat);
-
-            for (var k = 0; k < 3; k++)
-            {
-                var ring = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                ring.name = $"Elevator_Ring_{k}";
-                ring.transform.SetParent(core.transform, false);
-                Undo.RegisterCreatedObjectUndo(ring, ring.name);
-                ring.transform.localPosition = offset + Vector3.up * (1.1f + k * 1.15f);
-                ring.transform.localScale = new Vector3(2.05f, 0.08f, 2.05f);
-                ApplyMat(ring, accentMat);
             }
         }
 
