@@ -1,4 +1,5 @@
 using TMPro;
+using RRX.Runtime;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
@@ -23,6 +24,7 @@ namespace RRX.UI
         [SerializeField] float _downMeters = 0.05f;
 
         bool _hudBuilt;
+        bool _canvasCameraAssigned;
         Canvas _canvas;
         CanvasScaler _scaler;
         RectTransform _rootRect;
@@ -52,6 +54,19 @@ namespace RRX.UI
             TryParentToXrCamera();
         }
 
+        void LateUpdate()
+        {
+            if (_canvasCameraAssigned || _canvas == null)
+                return;
+
+            var oxr = FindObjectOfType<XROrigin>();
+            if (oxr != null && oxr.Camera != null)
+            {
+                _canvas.worldCamera = oxr.Camera;
+                _canvasCameraAssigned = true;
+            }
+        }
+
         void TryParentToXrCamera()
         {
             var origin = FindObjectOfType<XROrigin>();
@@ -68,18 +83,13 @@ namespace RRX.UI
             transform.localScale = Vector3.one;
         }
 
+        /// <summary>
+        /// XR world UI requires <see cref="XRUIInputModule"/> — not plain <see cref="UnityEngine.InputSystem.UI.InputSystemUIInputModule"/>.
+        /// Otherwise controller rays (<see cref="UnityEngine.XR.Interaction.Toolkit.Interactors.XRRayInteractor"/>) never click UI.
+        /// </summary>
         static void EnsureEventSystem()
         {
-            if (FindObjectOfType<EventSystem>() != null)
-                return;
-
-            var es = new GameObject("RRX_EventSystem");
-            es.AddComponent<EventSystem>();
-#if ENABLE_INPUT_SYSTEM
-            es.AddComponent<UnityEngine.InputSystem.UI.InputSystemUIInputModule>();
-#else
-            es.AddComponent<StandaloneInputModule>();
-#endif
+            RRXRigInteractionSetup.ConfigureSceneEventSystems();
         }
 
         void BuildHud()
@@ -89,7 +99,9 @@ namespace RRX.UI
                 _canvas = gameObject.AddComponent<Canvas>();
 
             _canvas.renderMode = RenderMode.WorldSpace;
-            _canvas.worldCamera = null;
+            var oxr = FindObjectOfType<XROrigin>();
+            _canvas.worldCamera = oxr != null ? oxr.Camera : null;
+            _canvasCameraAssigned = _canvas.worldCamera != null;
 
             _scaler = gameObject.GetComponent<CanvasScaler>();
             if (_scaler == null)

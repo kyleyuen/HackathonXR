@@ -3,6 +3,7 @@ using RRX.Runtime;
 using Unity.XR.CoreUtils;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.XR.ARFoundation;
 
 namespace RRX.Editor
 {
@@ -36,9 +37,44 @@ namespace RRX.Editor
                         Undo.AddComponent<RRXMrPresentationHints>(origin.gameObject);
             hints.ApplyNow();
             EnsurePassthroughRadiusBoundary(origin);
+            EnsureArSession();
+            EnsureArCameraComponents(origin);
             EditorUtility.SetDirty(origin);
-            Debug.Log("[RRX] MR camera hints + passthrough depth tube applied (transparent clear; hole matches RRXPlayArea virtual floor). Player: preserve framebuffer alpha enabled. Meta OpenXR Android: enable Camera / passthrough features.");
+            Debug.Log("[RRX] MR camera hints + AR passthrough session + depth tube applied. Player: preserve framebuffer alpha enabled. OpenXR: enable Meta Quest AR Camera (Passthrough) feature.");
             return true;
+        }
+
+        /// <summary>
+        /// Scene-wide AR session so <c>XR_FB_passthrough</c> starts. One GameObject holds
+        /// <see cref="ARSession"/> + <see cref="ARInputManager"/>.
+        /// </summary>
+        static void EnsureArSession()
+        {
+            var existing = Object.FindObjectOfType<ARSession>();
+            if (existing != null)
+                return;
+
+            var go = new GameObject("AR Session");
+            Undo.RegisterCreatedObjectUndo(go, "AR Session");
+            Undo.AddComponent<ARSession>(go);
+            Undo.AddComponent<ARInputManager>(go);
+        }
+
+        /// <summary>
+        /// The XR camera needs <see cref="ARCameraManager"/> to drive the passthrough subsystem and
+        /// <see cref="ARCameraBackground"/> to blit the real-world feed under the scene so transparent
+        /// areas (the MR domain) show reality instead of black.
+        /// </summary>
+        static void EnsureArCameraComponents(XROrigin origin)
+        {
+            var cam = origin.Camera;
+            if (cam == null)
+                return;
+
+            if (cam.GetComponent<ARCameraManager>() == null)
+                Undo.AddComponent<ARCameraManager>(cam.gameObject);
+            if (cam.GetComponent<ARCameraBackground>() == null)
+                Undo.AddComponent<ARCameraBackground>(cam.gameObject);
         }
 
         /// <summary>
