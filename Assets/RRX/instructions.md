@@ -44,7 +44,7 @@ RRX adds items to the top menu bar **`RRX`** and also under **`Window → RRX`**
    - Ensures **XR Interaction Manager** and **XR Origin (XR Rig)** exist (from XR Interaction Toolkit).
    - Disables the extra **Main Camera** if it conflicts with the XR rig.
    - Creates **`RRX_Scenario`** with **Scenario Runner**, **Scenario Debug Hotkeys**, wires **patient**, **interaction zone**, **Phone** and **Narcan** props.
-   - Generates **`RRX_Environment_Root`**: **circular plaza floor** (walkable disc), **segmented boundary ring**, **storefront / infrastructure** ring, ceiling, concourse props, zone markers, ambience **AudioSources** (assign clips under `Assets/RRX/Audio`; see §5).
+   - Generates **`RRX_Environment_Root`**: **white tiled circular plaza** (walkable disc + physics collider), **12-sided dodecagon mall** with **three stacked floors** (each edge = one store bay, **~5 m** deep gallery walkway toward the atrium), railings, columns, elevator core, store interior blockout (racks, shelves, mannequins), hanging banners, ceiling, concourse props, zone markers, ambience **AudioSources** (assign clips under `Assets/RRX/Audio`; see §5).
    - Applies **MR camera hints** on **`XROrigin`** (transparent clear color for passthrough-friendly composition when supported).
 4. **Save the scene**: **File → Save** (Ctrl/Cmd+S).
 
@@ -78,7 +78,7 @@ Use these if you only need part of the setup or you are debugging.
 The walkable training floor is a **circle on XZ**, centered at the scene origin, controlled in code:
 
 - File: [`Assets/RRX/Scripts/Core/RRXPlayArea.cs`](Scripts/Core/RRXPlayArea.cs)
-- Constant: **`RRXPlayArea.RadiusMeters`** — radius of the **walkable disc** in meters (default **10** → **20 m** diameter plaza floor). Storefronts and ceiling extend **outside** this radius.
+- Constant: **`RRXPlayArea.RadiusMeters`** — radius of the **walkable disc** in meters (default **10** → **20 m** diameter plaza floor). The **dodecagon mall** (galleries + stores on **12** sides × **3** levels) and ceiling extend **outside** this radius; inner gallery edge starts just outside the play disc + boundary.
 - Helper: **`RRXPlayArea.ContainsWalkableDiscXZ`** for runtime checks (locomotion / sensing).
 
 After changing **`RadiusMeters`**, run **`RRX → Build Complete MR Scene (Auto)`** again (or at least **Generate Public Plaza Blockout**) so geometry and the scenario layout stay consistent.
