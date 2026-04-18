@@ -36,11 +36,11 @@ namespace RRX.Editor
             var hints = origin.GetComponent<RRXMrPresentationHints>() ??
                         Undo.AddComponent<RRXMrPresentationHints>(origin.gameObject);
             hints.ApplyNow();
-            EnsurePassthroughRadiusBoundary(origin);
+            StripPassthroughRadiusBoundary(origin);
             EnsureArSession();
             EnsureArCameraComponents(origin);
             EditorUtility.SetDirty(origin);
-            Debug.Log("[RRX] MR camera hints + AR passthrough session + depth tube applied. Player: preserve framebuffer alpha enabled. OpenXR: enable Meta Quest AR Camera (Passthrough) feature.");
+            Debug.Log("[RRX] MR camera hints + AR passthrough session applied. Virtual walls visible; MR bleed comes from translucent plaza tiles. Player: preserve framebuffer alpha enabled. OpenXR: enable Meta Quest AR Camera (Passthrough) feature.");
             return true;
         }
 
@@ -78,22 +78,22 @@ namespace RRX.Editor
         }
 
         /// <summary>
-        /// Depth-only tube at <see cref="RRXPlayArea.VirtualFloorHoleRadiusMeters"/> so the inner MR domain stays
-        /// real-world passthrough and outer virtual geometry depth-occludes correctly (no black paint).
+        /// Removes the legacy head-following depth tube. The tube was depth-occluding all virtual geometry
+        /// beyond its radius (including the mall walls), turning the horizon into solid passthrough. The MR
+        /// bleed now comes from translucent center tiles on the plaza floor, so the tube is no longer needed.
         /// </summary>
-        static void EnsurePassthroughRadiusBoundary(XROrigin origin)
+        static void StripPassthroughRadiusBoundary(XROrigin origin)
         {
-            var boundary = origin.GetComponent<RRXPassthroughRadiusBoundary>() ??
-                           Undo.AddComponent<RRXPassthroughRadiusBoundary>(origin.gameObject);
-            var so = new SerializedObject(boundary);
-            var sync = so.FindProperty("_syncRadiusFromPlayArea");
-            if (sync != null)
-                sync.boolValue = true;
-            var radius = so.FindProperty("_radiusMeters");
-            if (radius != null)
-                radius.floatValue = RRXPlayArea.VirtualFloorHoleRadiusMeters;
-            so.ApplyModifiedPropertiesWithoutUndo();
-            EditorUtility.SetDirty(boundary);
+            var boundary = origin.GetComponent<RRXPassthroughRadiusBoundary>();
+            if (boundary != null)
+                Undo.DestroyObjectImmediate(boundary);
+
+            for (var i = origin.transform.childCount - 1; i >= 0; i--)
+            {
+                var child = origin.transform.GetChild(i);
+                if (child != null && child.name == "RRX_PassthroughOccluderTube")
+                    Undo.DestroyObjectImmediate(child.gameObject);
+            }
         }
     }
 }

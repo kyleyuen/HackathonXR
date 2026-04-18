@@ -94,6 +94,7 @@ namespace RRX.Editor
             float aStoreOuter = aWalkOuter + StoreDepthMeters;
 
             var tileWhiteMat = GetOrCreateMatPlazaTileWhite();
+            var tileTranslucentMat = GetOrCreateMatPlazaTileTranslucent();
             var boundaryMat = GetOrCreateMat("RRX_Mat_Boundary", new Color(0.28f, 0.3f, 0.34f));
             var interiorWallMat = GetOrCreateMat("RRX_Mat_Wall", new Color(0.52f, 0.54f, 0.58f));
             var accentMat = GetOrCreateMat("RRX_Mat_Accent", new Color(0.78f, 0.82f, 0.88f));
@@ -115,6 +116,8 @@ namespace RRX.Editor
             BuildFloorPhysicsDisc(root.transform, discR, t);
             BuildTiledMapFloor(root.transform, aStoreOuter, tileWhiteMat, darkTrimMat,
                 RRXPlayArea.VirtualFloorHoleRadiusMeters);
+            BuildInnerTranslucentFloor(root.transform, RRXPlayArea.VirtualFloorHoleRadiusMeters,
+                tileTranslucentMat);
             BuildBoundaryRing(root.transform, discR, t, StoreStoryHeight * 0.92f, boundaryMat);
             BuildDodecagonMall(root.transform, aInner, aWalkOuter, aStoreOuter, glassMat, facadeMat, interiorWallMat,
                 darkTrimMat);
@@ -129,7 +132,7 @@ namespace RRX.Editor
             Selection.activeGameObject = root;
             EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
             Debug.Log(
-                $"[RRX] Dodecagon mall generated with MR center domain radius {discR:0.##}m (virtual floor carved out in center). Save the scene.");
+                $"[RRX] Dodecagon mall generated with MR center domain radius {discR:0.##}m (translucent virtual tiles in center let ~20% passthrough bleed through). Save the scene.");
         }
 
         /// <summary>Edge bisector angle (XZ): midpoint of edge i lies at apothem * unit direction.</summary>
@@ -247,6 +250,43 @@ namespace RRX.Editor
                     tile.transform.localPosition = new Vector3(x, 0.02f, z);
                     tile.transform.localScale = new Vector3(TileStepMap * 0.98f, 0.035f, TileStepMap * 0.98f);
                     ApplyMat(tile, mat);
+                    count++;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Fills the central MR hole (carved out by <see cref="BuildTiledMapFloor"/>) with semi-transparent
+        /// tiles so the inner domain still feels virtual (80% virtual) while real-world passthrough bleeds
+        /// through at ~20%.
+        /// </summary>
+        static void BuildInnerTranslucentFloor(Transform parent, float centerHoleRadius, Material translucentMat)
+        {
+            if (translucentMat == null || centerHoleRadius <= 0.01f)
+                return;
+
+            var holder = new GameObject("Plaza_FloorTiles_Inner");
+            holder.transform.SetParent(parent, false);
+            Undo.RegisterCreatedObjectUndo(holder, "Plaza Inner Translucent Tiles");
+
+            float extent = centerHoleRadius + TileStepMap;
+            float holeR2 = centerHoleRadius * centerHoleRadius;
+            var count = 0;
+
+            for (float x = -extent; x <= extent + 0.01f; x += TileStepMap)
+            {
+                for (float z = -extent; z <= extent + 0.01f; z += TileStepMap)
+                {
+                    if (x * x + z * z >= holeR2)
+                        continue;
+
+                    var tile = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                    tile.name = $"TileMR_{count:0000}";
+                    tile.transform.SetParent(holder.transform, false);
+                    Undo.RegisterCreatedObjectUndo(tile, tile.name);
+                    tile.transform.localPosition = new Vector3(x, 0.022f, z);
+                    tile.transform.localScale = new Vector3(TileStepMap * 0.98f, 0.01f, TileStepMap * 0.98f);
+                    ApplyMat(tile, translucentMat);
                     count++;
                 }
             }
@@ -754,6 +794,95 @@ namespace RRX.Editor
 
             AssetDatabase.CreateAsset(mat, path);
             return mat;
+        }
+
+        /// <summary>
+        /// Same grout tile look as the opaque plaza material but configured for alpha-blend transparency so
+        /// the Meta Quest AR camera passthrough bleeds through at ~20% behind the virtual tile surface.
+        /// </summary>
+        static Material GetOrCreateMatPlazaTileTranslucent()
+        {
+            const string assetName = "RRX_Mat_PlazaTileTranslucent";
+            var path = $"{MatFolder}/{assetName}.mat";
+            var existing = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (existing != null)
+            {
+                ApplyTileTranslucentSettings(existing);
+                EditorUtility.SetDirty(existing);
+                return existing;
+            }
+
+            var groutPath = $"{MatFolder}/RRX_Tex_GroutTile.png";
+            if (AssetDatabase.LoadAssetAtPath<Texture2D>(groutPath) == null)
+            {
+                var grout = CreateGroutTexture();
+                File.WriteAllBytes(groutPath, grout.EncodeToPNG());
+                AssetDatabase.ImportAsset(groutPath, ImportAssetOptions.ForceUpdate);
+            }
+            var tex = AssetDatabase.LoadAssetAtPath<Texture2D>(groutPath);
+
+            var shader = Shader.Find("Standard");
+            if (shader == null)
+                shader = Shader.Find("Universal Render Pipeline/Lit");
+            if (shader == null)
+                shader = Shader.Find("Sprites/Default");
+
+            var mat = new Material(shader);
+            if (mat.HasProperty("_MainTex"))
+            {
+                mat.SetTexture("_MainTex", tex);
+                mat.SetTextureScale("_MainTex", new Vector2(4f, 4f));
+            }
+            if (mat.HasProperty("_BaseMap"))
+            {
+                mat.SetTexture("_BaseMap", tex);
+                mat.SetTextureScale("_BaseMap", new Vector2(4f, 4f));
+            }
+            ApplyTileTranslucentSettings(mat);
+
+            AssetDatabase.CreateAsset(mat, path);
+            return mat;
+        }
+
+        /// <summary>
+        /// Configures a material for Standard/URP transparent rendering at alpha 0.8 (80% virtual tile,
+        /// 20% passthrough bleed). Safe to call on an existing material to upgrade its flags.
+        /// </summary>
+        static void ApplyTileTranslucentSettings(Material mat)
+        {
+            if (mat == null)
+                return;
+
+            var color = new Color(1f, 1f, 1f, 0.8f);
+            if (mat.HasProperty("_Color"))
+                mat.color = color;
+            if (mat.HasProperty("_BaseColor"))
+                mat.SetColor("_BaseColor", color);
+
+            if (mat.HasProperty("_Mode"))
+                mat.SetFloat("_Mode", 3f);
+            if (mat.HasProperty("_Surface"))
+                mat.SetFloat("_Surface", 1f);
+
+            mat.SetOverrideTag("RenderType", "Transparent");
+            if (mat.HasProperty("_SrcBlend"))
+                mat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+            if (mat.HasProperty("_DstBlend"))
+                mat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+            if (mat.HasProperty("_ZWrite"))
+                mat.SetInt("_ZWrite", 0);
+
+            mat.DisableKeyword("_ALPHATEST_ON");
+            mat.EnableKeyword("_ALPHABLEND_ON");
+            mat.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+            mat.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+
+            if (mat.HasProperty("_Glossiness"))
+                mat.SetFloat("_Glossiness", 0.5f);
+            if (mat.HasProperty("_Smoothness"))
+                mat.SetFloat("_Smoothness", 0.55f);
+            if (mat.HasProperty("_Metallic"))
+                mat.SetFloat("_Metallic", 0.05f);
         }
 
         static Texture2D CreateGroutTexture()
