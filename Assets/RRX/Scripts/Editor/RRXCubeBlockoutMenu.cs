@@ -26,9 +26,11 @@ namespace RRX.Editor
         const int MallFloorCount = 3;
         const float DeckSlabY = 0.1f;
         const float StoreStoryHeight = 3.15f;
-        const float CeilingY = MallFloorCount * FloorToFloor + 2.2f;
-        const float TileStep = 0.55f;
+        const float CeilingY = MallFloorCount * FloorToFloor + StoreStoryHeight + 0.35f;
+        const float TileStepMap = 0.62f;
+        const int MaxMapTiles = 3400;
         const float InnerGalleryMargin = 0.18f;
+        const float UpperWalkwayPullInPerFloor = 1.12f;
 
         [MenuItem("RRX/Generate Public Plaza Blockout", false, 40)]
         [MenuItem("Window/RRX/Generate Public Plaza Blockout", false, 40)]
@@ -75,7 +77,7 @@ namespace RRX.Editor
             float aStoreOuter = aWalkOuter + StoreDepthMeters;
 
             BuildFloorPhysicsDisc(root.transform, R, t);
-            BuildTiledDiscFloor(root.transform, R, tileWhiteMat, darkTrimMat);
+            BuildTiledMapFloor(root.transform, aStoreOuter, tileWhiteMat, darkTrimMat);
             BuildBoundaryRing(root.transform, R, t, StoreStoryHeight * 0.92f, boundaryMat);
             BuildDodecagonMall(root.transform, aInner, aWalkOuter, aStoreOuter, glassMat, facadeMat, interiorWallMat,
                 darkTrimMat);
@@ -94,7 +96,7 @@ namespace RRX.Editor
             Selection.activeGameObject = root;
             EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
             Debug.Log(
-                $"[RRX] Dodecagon mall: {DodecagonSides} sides × {MallFloorCount} floors, {WalkwayDepthMeters} m galleries, white tile disc r={R}. Save the scene.");
+                $"[RRX] Dodecagon mall: {DodecagonSides} sides × {MallFloorCount} floors, {WalkwayDepthMeters} m galleries, white tiles to outer radius, open-front stores. Save the scene.");
         }
 
         /// <summary>Edge bisector angle (XZ): midpoint of edge i lies at apothem * unit direction.</summary>
@@ -112,6 +114,26 @@ namespace RRX.Editor
         static float EdgeLengthForApothem(float apothem)
         {
             return 2f * apothem * Mathf.Tan(Mathf.PI / DodecagonSides);
+        }
+
+        /// <summary>Inner gallery apothem; upper floors pull inward so walkways widen toward the atrium.</summary>
+        static float InnerApothemForFloor(int floorIndex, float aInnerBase)
+        {
+            if (floorIndex <= 0)
+                return aInnerBase;
+            return Mathf.Max(aInnerBase - UpperWalkwayPullInPerFloor * floorIndex, aInnerBase * 0.72f);
+        }
+
+        static float MapBoundingRadius(float aStoreOuter)
+        {
+            return aStoreOuter / Mathf.Cos(Mathf.PI / DodecagonSides) + 1.1f;
+        }
+
+        static Vector3 InnerDodecagonVertex(int vertexIndex, float innerApothem)
+        {
+            float Rv = innerApothem / Mathf.Cos(Mathf.PI / DodecagonSides);
+            float ang = vertexIndex * (2f * Mathf.PI / DodecagonSides);
+            return new Vector3(Mathf.Cos(ang) * Rv, 0f, Mathf.Sin(ang) * Rv);
         }
 
         /// <summary>Radial slab along one dodecagon edge: width = edge chord, depth = outerApo - innerApo, height = heightY.</summary>
@@ -160,23 +182,25 @@ namespace RRX.Editor
             }
         }
 
-        static void BuildTiledDiscFloor(Transform parent, float playRadius, Material tileMat, Material borderMat)
+        static void BuildTiledMapFloor(Transform parent, float aStoreOuter, Material tileMat, Material borderMat)
         {
             var holder = new GameObject("Plaza_FloorTiles");
             holder.transform.SetParent(parent, false);
             Undo.RegisterCreatedObjectUndo(holder, "Plaza Floor Tiles");
 
-            float r2 = playRadius * playRadius - 0.02f;
-            int count = 0;
-            for (float x = -playRadius; x <= playRadius + 0.01f; x += TileStep)
+            float extent = MapBoundingRadius(aStoreOuter);
+            float r2 = extent * extent;
+            var count = 0;
+
+            for (float x = -extent; x <= extent + 0.01f; x += TileStepMap)
             {
-                for (float z = -playRadius; z <= playRadius + 0.01f; z += TileStep)
+                for (float z = -extent; z <= extent + 0.01f; z += TileStepMap)
                 {
                     if (x * x + z * z > r2)
                         continue;
 
-                    var ix = Mathf.RoundToInt(x / TileStep);
-                    var iz = Mathf.RoundToInt(z / TileStep);
+                    var ix = Mathf.RoundToInt(x / TileStepMap);
+                    var iz = Mathf.RoundToInt(z / TileStepMap);
                     var mat = (ix + iz) % 7 == 0 ? borderMat : tileMat;
 
                     var tile = GameObject.CreatePrimitive(PrimitiveType.Cube);
@@ -184,16 +208,13 @@ namespace RRX.Editor
                     tile.transform.SetParent(holder.transform, false);
                     Undo.RegisterCreatedObjectUndo(tile, tile.name);
                     tile.transform.localPosition = new Vector3(x, 0.02f, z);
-                    tile.transform.localScale = new Vector3(TileStep * 0.98f, 0.035f, TileStep * 0.98f);
+                    tile.transform.localScale = new Vector3(TileStepMap * 0.98f, 0.035f, TileStepMap * 0.98f);
                     ApplyMat(tile, mat);
                     count++;
-                    if (count > 650)
-                        goto DoneTiles;
+                    if (count >= MaxMapTiles)
+                        return;
                 }
             }
-
-        DoneTiles:
-            ;
         }
 
         static void BuildBoundaryRing(Transform parent, float R, float thickness, float height, Material mat)
@@ -240,19 +261,60 @@ namespace RRX.Editor
 
                 float yBase = f * FloorToFloor;
                 float deckCenterY = yBase + DeckSlabY * 0.5f;
+                float aInF = InnerApothemForFloor(f, aInner);
 
                 for (var e = 0; e < DodecagonSides; e++)
                 {
                     var deckMatPick = e % 3 == 0 ? trimMat : deckMat;
-                    PlaceEdgeRadialSlab(floorRoot.transform, $"Walkway_L{f}_E{e:00}", e, aInner, aWalkOuter,
+                    PlaceEdgeRadialSlab(floorRoot.transform, $"Walkway_L{f}_E{e:00}", e, aInF, aWalkOuter,
                         deckCenterY, DeckSlabY, deckMatPick);
 
                     float storeCenterY = yBase + DeckSlabY + StoreStoryHeight * 0.5f;
                     var storeMat = e % 2 == 0 ? glassMat : facadeMat;
-                    PlaceEdgeRadialSlab(floorRoot.transform, $"Store_L{f}_E{e:00}", e, aWalkOuter, aStoreOuter,
-                        storeCenterY, StoreStoryHeight, storeMat);
+                    BuildOpenFrontStoreShell(floorRoot.transform, f, e, aWalkOuter, aStoreOuter, storeCenterY,
+                        StoreStoryHeight, storeMat);
                 }
             }
+        }
+
+        /// <summary>Five-wall store shell; opening faces the atrium (inward, -local Z relative to outward rotation).</summary>
+        static void BuildOpenFrontStoreShell(Transform parent, int floorIndex, int edgeIndex, float aWalkOuter,
+            float aStoreOuter, float centerWorldY, float boxHeight, Material wallMat)
+        {
+            var dir = EdgeOutwardXZ(edgeIndex);
+            float midA = (aWalkOuter + aStoreOuter) * 0.5f;
+            float depth = aStoreOuter - aWalkOuter;
+            float width = EdgeLengthForApothem(midA);
+            const float t = 0.14f;
+
+            var root = new GameObject($"StoreOpen_L{floorIndex}_E{edgeIndex:00}");
+            root.transform.SetParent(parent, false);
+            Undo.RegisterCreatedObjectUndo(root, root.name);
+
+            root.transform.position = dir * midA + Vector3.up * centerWorldY;
+            root.transform.rotation = Quaternion.LookRotation(dir, Vector3.up);
+
+            void Wall(string n, Vector3 lp, Vector3 sc)
+            {
+                var w = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                w.name = n;
+                w.transform.SetParent(root.transform, false);
+                Undo.RegisterCreatedObjectUndo(w, n);
+                w.transform.localPosition = lp;
+                w.transform.localScale = sc;
+                ApplyMat(w, wallMat);
+            }
+
+            Wall("Back", new Vector3(0f, 0f, depth * 0.5f - t * 0.5f),
+                new Vector3(width * 0.98f, boxHeight, t));
+            Wall("Left", new Vector3(-width * 0.5f + t * 0.5f, 0f, 0f),
+                new Vector3(t, boxHeight, depth * 0.96f));
+            Wall("Right", new Vector3(width * 0.5f - t * 0.5f, 0f, 0f),
+                new Vector3(t, boxHeight, depth * 0.96f));
+            Wall("Floor", new Vector3(0f, -boxHeight * 0.5f + t * 0.5f, 0f),
+                new Vector3(width * 0.96f, t, depth * 0.96f));
+            Wall("Ceiling", new Vector3(0f, boxHeight * 0.5f - t * 0.5f, 0f),
+                new Vector3(width * 0.96f, t, depth * 0.96f));
         }
 
         static void BuildOuterCurtainWall(Transform parent, float aStoreOuter, Material wallMat)
@@ -283,40 +345,35 @@ namespace RRX.Editor
             for (var f = 0; f < MallFloorCount; f++)
             {
                 float deckTopY = f * FloorToFloor + DeckSlabY;
-                float railCenterY = deckTopY + 0.92f;
+                float railY = deckTopY + 0.92f;
+                float aInF = InnerApothemForFloor(f, aInner);
 
-                for (var e = 0; e < DodecagonSides; e++)
+                for (var v = 0; v < DodecagonSides; v++)
                 {
-                    float phi0 = EdgeBisectorRadians(e) - Mathf.PI / DodecagonSides;
-                    float phi1 = EdgeBisectorRadians(e) + Mathf.PI / DodecagonSides;
-                    var t0 = new Vector3(Mathf.Cos(phi0), 0f, Mathf.Sin(phi0));
-                    var t1 = new Vector3(Mathf.Cos(phi1), 0f, Mathf.Sin(phi1));
-                    float Rv = aInner / Mathf.Cos(Mathf.PI / DodecagonSides);
-                    var p0 = t0 * Rv;
-                    var p1 = t1 * Rv;
+                    var p0 = InnerDodecagonVertex(v, aInF);
+                    var p1 = InnerDodecagonVertex((v + 1) % DodecagonSides, aInF);
                     var edgeVec = p1 - p0;
                     float edgeLen = edgeVec.magnitude;
                     var edgeDir = edgeVec / edgeLen;
-                    var mid = (p0 + p1) * 0.5f + Vector3.up * railCenterY;
+                    var mid = (p0 + p1) * 0.5f + Vector3.up * railY;
 
                     var handrail = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                    handrail.name = $"Handrail_L{f}_E{e:00}";
+                    handrail.name = $"HandrailRun_L{f}_V{v:00}";
                     handrail.transform.SetParent(rails.transform, false);
                     Undo.RegisterCreatedObjectUndo(handrail, handrail.name);
                     handrail.transform.position = mid;
                     handrail.transform.rotation = Quaternion.LookRotation(edgeDir, Vector3.up);
-                    handrail.transform.localScale = new Vector3(edgeLen * 0.98f, 0.08f, 0.12f);
+                    handrail.transform.localScale = new Vector3(edgeLen * 1.01f, 0.08f, 0.12f);
                     ApplyMat(handrail, railMat);
 
-                    var inward = -((p0 + p1) * 0.5f).normalized;
-                    int nPosts = Mathf.Clamp(Mathf.RoundToInt(edgeLen / postEvery), 2, 8);
+                    int nPosts = Mathf.Clamp(Mathf.RoundToInt(edgeLen / postEvery), 2, 10);
                     for (var p = 0; p <= nPosts; p++)
                     {
                         float t = p / (float)nPosts;
-                        var postPos = p0 + edgeDir * (edgeLen * t) + Vector3.up * (railCenterY - 0.08f) +
-                                      inward * 0.05f;
+                        var xz = p0 + edgeDir * (edgeLen * t);
+                        var postPos = xz + Vector3.up * (railY - 0.08f);
                         var post = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                        post.name = $"RailPost_L{f}_E{e}_{p:00}";
+                        post.name = $"RailPost_L{f}_V{v}_{p:00}";
                         post.transform.SetParent(rails.transform, false);
                         Undo.RegisterCreatedObjectUndo(post, post.name);
                         post.transform.position = postPos;
@@ -396,34 +453,36 @@ namespace RRX.Editor
                     var dir = EdgeOutwardXZ(e);
                     float phi = EdgeBisectorRadians(e);
                     float tanHalf = Mathf.Tan(Mathf.PI / DodecagonSides);
-                    float edgeHalf = midStoreA * tanHalf * 0.72f;
+                    float edgeHalf = midStoreA * tanHalf * 0.65f;
                     var tangent = new Vector3(-dir.z, 0f, dir.x);
                     int seed = e * 7919 + f * 10007;
                     var rng = new System.Random(seed);
+                    var inwardBias = dir * 0.28f;
 
                     for (var k = 0; k < 3; k++)
                     {
-                        float along = (k - 1) * (edgeHalf * 0.55f) + (float)(rng.NextDouble() - 0.5) * 0.35f;
-                        var basePos = dir * midStoreA + tangent * along + Vector3.up * yBase;
+                        float along = (k - 1) * (edgeHalf * 0.5f) + (float)(rng.NextDouble() - 0.5) * 0.28f;
+                        var basePos = dir * (midStoreA + 0.22f) + inwardBias + tangent * along + Vector3.up * yBase;
 
                         BuildClothingRack(interiors.transform, $"Rack_L{f}_E{e}_{k}", basePos, phi, propMat, rng);
                     }
 
-                    var shelfPos = dir * (midStoreA + 0.35f) + Vector3.up * (yBase + 0.9f);
+                    var shelfPos = dir * (midStoreA + 0.42f) + inwardBias * 0.5f + Vector3.up * (yBase + 0.85f);
                     BuildCube(interiors.transform, $"Shelf_L{f}_E{e}", shelfPos,
                         new Vector3(edgeHalf * 1.6f, 1.8f, 0.25f), Quaternion.Euler(0f, -phi * Mathf.Rad2Deg, 0f),
                         shelfMat);
 
                     if ((seed & 1) == 0)
                     {
-                        var tablePos = dir * (midStoreA - 0.4f) + tangent * (edgeHalf * 0.3f) +
-                                       Vector3.up * (yBase + 0.4f);
+                        var tablePos = dir * (midStoreA - 0.25f) + inwardBias * 0.35f + tangent * (edgeHalf * 0.28f) +
+                                       Vector3.up * (yBase + 0.38f);
                         BuildCube(interiors.transform, $"Table_L{f}_E{e}", tablePos,
                             new Vector3(0.9f, 0.45f, 0.55f), Quaternion.Euler(0f, -phi * Mathf.Rad2Deg, 0f),
                             accentMat);
                     }
 
-                    var manPos = dir * (midStoreA - 0.15f) + tangent * (-edgeHalf * 0.45f) + Vector3.up * (yBase + 0.55f);
+                    var manPos = dir * (midStoreA - 0.05f) + inwardBias * 0.4f + tangent * (-edgeHalf * 0.4f) +
+                                 Vector3.up * (yBase + 0.52f);
                     BuildMannequin(interiors.transform, $"Mannequin_L{f}_E{e}", manPos, phi, propMat);
                 }
             }
@@ -440,22 +499,22 @@ namespace RRX.Editor
 
             var baseLeg = GameObject.CreatePrimitive(PrimitiveType.Cube);
             baseLeg.transform.SetParent(root.transform, false);
-            baseLeg.transform.localPosition = new Vector3(0f, 0.55f, 0f);
-            baseLeg.transform.localScale = new Vector3(0.12f, 1.1f, 0.12f);
+            baseLeg.transform.localPosition = new Vector3(0f, 0.38f, 0f);
+            baseLeg.transform.localScale = new Vector3(0.1f, 0.76f, 0.1f);
             ApplyMat(baseLeg, mat);
 
             var bar = GameObject.CreatePrimitive(PrimitiveType.Cube);
             bar.transform.SetParent(root.transform, false);
-            bar.transform.localPosition = new Vector3(0f, 1.15f, 0f);
-            bar.transform.localScale = new Vector3(1.35f, 0.06f, 0.06f);
+            bar.transform.localPosition = new Vector3(0f, 0.82f, 0f);
+            bar.transform.localScale = new Vector3(1.1f, 0.05f, 0.05f);
             ApplyMat(bar, mat);
 
             for (var s = -1; s <= 1; s += 2)
             {
                 var arm = GameObject.CreatePrimitive(PrimitiveType.Cube);
                 arm.transform.SetParent(root.transform, false);
-                arm.transform.localPosition = new Vector3(s * 0.55f, 0.95f, 0f);
-                arm.transform.localScale = new Vector3(0.05f, 0.5f, 0.05f);
+                arm.transform.localPosition = new Vector3(s * 0.45f, 0.72f, 0f);
+                arm.transform.localScale = new Vector3(0.04f, 0.38f, 0.04f);
                 ApplyMat(arm, mat);
             }
         }
@@ -470,8 +529,8 @@ namespace RRX.Editor
 
             var cap = GameObject.CreatePrimitive(PrimitiveType.Capsule);
             cap.transform.SetParent(root.transform, false);
-            cap.transform.localPosition = new Vector3(0f, 0.95f, 0f);
-            cap.transform.localScale = new Vector3(0.28f, 0.45f, 0.22f);
+            cap.transform.localPosition = new Vector3(0f, 0.82f, 0f);
+            cap.transform.localScale = new Vector3(0.26f, 0.38f, 0.2f);
             ApplyMat(cap, mat);
 
             var plinth = GameObject.CreatePrimitive(PrimitiveType.Cube);
@@ -518,7 +577,7 @@ namespace RRX.Editor
 
         static void BuildCeiling(Transform parent, float aStoreOuter, Material ceilingMat)
         {
-            float Rv = aStoreOuter / Mathf.Cos(Mathf.PI / DodecagonSides) + 2.5f;
+            float Rv = aStoreOuter / Mathf.Cos(Mathf.PI / DodecagonSides) + 3.2f;
             var ceiling = GameObject.CreatePrimitive(PrimitiveType.Cube);
             ceiling.name = "Plaza_Ceiling";
             ceiling.transform.SetParent(parent, false);
