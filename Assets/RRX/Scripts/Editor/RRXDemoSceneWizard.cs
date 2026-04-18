@@ -251,7 +251,7 @@ namespace RRX.Editor
             var go = new GameObject("RRX_FloatingHUD");
             Undo.RegisterCreatedObjectUndo(go, "RRX Floating HUD");
             Undo.SetTransformParent(go.transform, cam, "RRX Floating HUD");
-            go.transform.localPosition = new Vector3(0f, -0.05f, 0.72f);
+            go.transform.localPosition = new Vector3(0f, -0.05f, 1.12f);
             go.transform.localRotation = Quaternion.identity;
             go.transform.localScale = Vector3.one;
             Undo.AddComponent<RRXFloatingHud>(go);

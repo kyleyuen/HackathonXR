@@ -28,7 +28,7 @@ namespace RRX.UI
         const float SplitPanelOpenYawDegrees = 14f;
         const float SplitPanelOpenPitchDegrees = 5f;
 
-        [SerializeField] float _forwardMeters = 0.72f;
+        [SerializeField] float _forwardMeters = 1.12f;
         [SerializeField] float _downMeters = 0.05f;
 
         bool _hudBuilt;

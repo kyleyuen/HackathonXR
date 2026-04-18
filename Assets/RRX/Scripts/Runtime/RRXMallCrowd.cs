@@ -18,7 +18,7 @@ namespace RRX.Environment
         [SerializeField] float _targetReachEpsilon = 0.35f;
         [SerializeField] float _showDistanceMeters = 16f;
         [SerializeField] float _hideDistanceMeters = 19f;
-        [SerializeField] float _playerExclusionRadiusMeters = 2.5f;
+        [SerializeField] float _playerExclusionRadiusMeters = 1f;
 
         Transform _camera;
         Pedestrian[] _peds;
