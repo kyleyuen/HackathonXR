@@ -132,7 +132,7 @@ namespace RRX.Editor
             Selection.activeGameObject = root;
             EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
             Debug.Log(
-                $"[RRX] Dodecagon mall generated with MR center domain radius {discR:0.##}m (translucent virtual tiles in center let ~20% passthrough bleed through). Save the scene.");
+                $"[RRX] Dodecagon mall generated with MR center domain radius {discR:0.##}m (translucent virtual tiles in center let ~50% passthrough bleed through). Save the scene.");
         }
 
         /// <summary>Edge bisector angle (XZ): midpoint of edge i lies at apothem * unit direction.</summary>
@@ -257,8 +257,8 @@ namespace RRX.Editor
 
         /// <summary>
         /// Fills the central MR hole (carved out by <see cref="BuildTiledMapFloor"/>) with semi-transparent
-        /// tiles so the inner domain still feels virtual (80% virtual) while real-world passthrough bleeds
-        /// through at ~20%.
+        /// tiles so the inner domain feels half virtual / half real — a 50/50 blend of the virtual tile
+        /// surface and the Meta Quest AR camera passthrough underneath.
         /// </summary>
         static void BuildInnerTranslucentFloor(Transform parent, float centerHoleRadius, Material translucentMat)
         {
@@ -797,8 +797,9 @@ namespace RRX.Editor
         }
 
         /// <summary>
-        /// Same grout tile look as the opaque plaza material but configured for alpha-blend transparency so
-        /// the Meta Quest AR camera passthrough bleeds through at ~20% behind the virtual tile surface.
+        /// Same grout tile look as the opaque plaza material but configured for alpha-blend transparency
+        /// (alpha 0.5) so the Meta Quest AR camera passthrough shows through the virtual tile surface at
+        /// roughly a 50/50 blend.
         /// </summary>
         static Material GetOrCreateMatPlazaTileTranslucent()
         {
@@ -845,15 +846,15 @@ namespace RRX.Editor
         }
 
         /// <summary>
-        /// Configures a material for Standard/URP transparent rendering at alpha 0.8 (80% virtual tile,
-        /// 20% passthrough bleed). Safe to call on an existing material to upgrade its flags.
+        /// Configures a material for Standard/URP transparent rendering at alpha 0.5 (50% virtual tile,
+        /// 50% passthrough bleed). Safe to call on an existing material to upgrade its flags.
         /// </summary>
         static void ApplyTileTranslucentSettings(Material mat)
         {
             if (mat == null)
                 return;
 
-            var color = new Color(1f, 1f, 1f, 0.8f);
+            var color = new Color(1f, 1f, 1f, 0.5f);
             if (mat.HasProperty("_Color"))
                 mat.color = color;
             if (mat.HasProperty("_BaseColor"))
