@@ -21,7 +21,10 @@ namespace RRX.UI
         const int CanvasRefPixels = 900;
         const int CanvasRefPixelsY = 560;
         const float TriggerThreshold = 0.82f;
-        const float SplitPanelSpacing = 110f;
+        /// <summary>Docked strip width in canvas pixels (reference resolution); keep modest so panels sit at FOV edges.</summary>
+        const float SplitPanelWidthPx = 248f;
+        const float SplitEdgeInsetPx = 4f;
+        const float SplitVerticalInsetPx = 24f;
         const float SplitPanelOpenYawDegrees = 14f;
         const float SplitPanelOpenPitchDegrees = 5f;
 
@@ -237,31 +240,40 @@ namespace RRX.UI
 
             _splitCanvasGroup = _splitPanel.AddComponent<CanvasGroup>();
 
-            var row = _splitPanel.AddComponent<HorizontalLayoutGroup>();
-            row.childAlignment = TextAnchor.UpperCenter;
-            row.spacing = SplitPanelSpacing;
-            row.padding = new RectOffset(24, 24, 28, 28);
-            row.childControlHeight = true;
-            row.childControlWidth = true;
-            row.childForceExpandHeight = true;
-            row.childForceExpandWidth = true;
-
             var splitRt = _splitPanel.GetComponent<RectTransform>();
-            _leftPanelRect = CreatePanelColumn(splitRt, "MenusPanel", true).GetComponent<RectTransform>();
-            _rightPanelRect = CreatePanelColumn(splitRt, "ToolsPanel", false).GetComponent<RectTransform>();
+            _leftPanelRect = CreatePanelColumn(splitRt, "MenusPanel", true, dockLeft: true).GetComponent<RectTransform>();
+            _rightPanelRect = CreatePanelColumn(splitRt, "ToolsPanel", false, dockLeft: false).GetComponent<RectTransform>();
 
-            // Slight outward “double window” skew: tops lean back, outer edges swing away from center gap.
-            _leftPanelRect.localRotation = Quaternion.Euler(SplitPanelOpenPitchDegrees, SplitPanelOpenYawDegrees, 0f);
-            _rightPanelRect.localRotation = Quaternion.Euler(SplitPanelOpenPitchDegrees, -SplitPanelOpenYawDegrees, 0f);
+            // Outward “double window” skew (mirrored): inverted from the previous tilt/yaw so each sash opens the other way.
+            _leftPanelRect.localRotation = Quaternion.Euler(-SplitPanelOpenPitchDegrees, -SplitPanelOpenYawDegrees, 0f);
+            _rightPanelRect.localRotation = Quaternion.Euler(-SplitPanelOpenPitchDegrees, SplitPanelOpenYawDegrees, 0f);
         }
 
-        GameObject CreatePanelColumn(RectTransform parent, string name, bool menusColumn)
+        GameObject CreatePanelColumn(RectTransform parent, string name, bool menusColumn, bool dockLeft)
         {
             var go = new GameObject(name, typeof(RectTransform), typeof(LayoutElement), typeof(Image));
             go.transform.SetParent(parent, false);
+            var rt = go.GetComponent<RectTransform>();
+            if (dockLeft)
+            {
+                rt.anchorMin = new Vector2(0f, 0f);
+                rt.anchorMax = new Vector2(0f, 1f);
+                rt.pivot = new Vector2(0f, 0.5f);
+                rt.anchoredPosition = new Vector2(SplitEdgeInsetPx, 0f);
+                rt.sizeDelta = new Vector2(SplitPanelWidthPx, -SplitVerticalInsetPx * 2f);
+            }
+            else
+            {
+                rt.anchorMin = new Vector2(1f, 0f);
+                rt.anchorMax = new Vector2(1f, 1f);
+                rt.pivot = new Vector2(1f, 0.5f);
+                rt.anchoredPosition = new Vector2(-SplitEdgeInsetPx, 0f);
+                rt.sizeDelta = new Vector2(SplitPanelWidthPx, -SplitVerticalInsetPx * 2f);
+            }
+
             var le = go.GetComponent<LayoutElement>();
-            le.flexibleWidth = 1f;
-            le.minWidth = 160f;
+            le.minWidth = SplitPanelWidthPx;
+            le.preferredWidth = SplitPanelWidthPx;
             var img = go.GetComponent<Image>();
             img.color = new Color(0.06f, 0.07f, 0.09f, PanelOpacity);
             img.raycastTarget = true;
