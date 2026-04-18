@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using RRX.UI;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -29,6 +30,15 @@ namespace RRX.Editor
         const string LocomotionChildName = "RRX_Locomotion";
         const string StripLocomotionChildName = "Locomotion System";
 
+        [MenuItem("RRX/Add Floating HUD To XR Camera", false, 25)]
+        [MenuItem("Window/RRX/Add Floating HUD To XR Camera", false, 25)]
+        static void MenuAddFloatingHud()
+        {
+            EnsureFloatingHud();
+            EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
+            Debug.Log("[RRX] Floating HUD added under XR camera (if origin present). Save the scene.");
+        }
+
         [MenuItem("RRX/Build Complete MR Scene (Auto)", false, -100)]
         [MenuItem("Window/RRX/Build Complete MR Scene (Auto)", false, -100)]
         static void MenuBuildCompleteMrSceneAuto()
@@ -50,7 +60,27 @@ namespace RRX.Editor
             EnsureLocomotionAndCollision();
             DisableStarterTeleportInteractors();
             RRXCubeBlockoutMenu.RunBlockoutGeneration();
+            EnsureFloatingHud();
             RRXMrCameraMenu.TryApplyMrCameraHints(showDialogIfNoOrigin: false);
+        }
+
+        static void EnsureFloatingHud()
+        {
+            var origin = Object.FindObjectOfType<XROrigin>();
+            if (origin == null || origin.Camera == null)
+                return;
+
+            var cam = origin.Camera.transform;
+            if (cam.GetComponentInChildren<RRXFloatingHud>(true) != null)
+                return;
+
+            var go = new GameObject("RRX_FloatingHUD");
+            Undo.RegisterCreatedObjectUndo(go, "RRX Floating HUD");
+            Undo.SetTransformParent(go.transform, cam, "RRX Floating HUD");
+            go.transform.localPosition = new Vector3(0f, -0.05f, 0.72f);
+            go.transform.localRotation = Quaternion.identity;
+            go.transform.localScale = Vector3.one;
+            Undo.AddComponent<RRXFloatingHud>(go);
         }
 
         static GameObject TryFindXrOriginPrefabAsset()
