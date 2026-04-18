@@ -1,3 +1,4 @@
+using RRX.Core;
 using RRX.Runtime;
 using Unity.XR.CoreUtils;
 using UnityEditor;
@@ -34,9 +35,29 @@ namespace RRX.Editor
             var hints = origin.GetComponent<RRXMrPresentationHints>() ??
                         Undo.AddComponent<RRXMrPresentationHints>(origin.gameObject);
             hints.ApplyNow();
+            EnsurePassthroughRadiusBoundary(origin);
             EditorUtility.SetDirty(origin);
-            Debug.Log("[RRX] MR camera hints applied (SolidColor, alpha 0 background). After importing com.unity.xr.meta-openxr: Project Settings > XR Plug-in Management > OpenXR > Android > Meta Quest feature group > enable Camera / passthrough-related features per Unity OpenXR Meta docs.");
+            Debug.Log("[RRX] MR camera hints + passthrough depth tube applied (transparent clear; hole matches RRXPlayArea virtual floor). Player: preserve framebuffer alpha enabled. Meta OpenXR Android: enable Camera / passthrough features.");
             return true;
+        }
+
+        /// <summary>
+        /// Depth-only tube at <see cref="RRXPlayArea.VirtualFloorHoleRadiusMeters"/> so the inner MR domain stays
+        /// real-world passthrough and outer virtual geometry depth-occludes correctly (no black paint).
+        /// </summary>
+        static void EnsurePassthroughRadiusBoundary(XROrigin origin)
+        {
+            var boundary = origin.GetComponent<RRXPassthroughRadiusBoundary>() ??
+                           Undo.AddComponent<RRXPassthroughRadiusBoundary>(origin.gameObject);
+            var so = new SerializedObject(boundary);
+            var sync = so.FindProperty("_syncRadiusFromPlayArea");
+            if (sync != null)
+                sync.boolValue = true;
+            var radius = so.FindProperty("_radiusMeters");
+            if (radius != null)
+                radius.floatValue = RRXPlayArea.VirtualFloorHoleRadiusMeters;
+            so.ApplyModifiedPropertiesWithoutUndo();
+            EditorUtility.SetDirty(boundary);
         }
     }
 }

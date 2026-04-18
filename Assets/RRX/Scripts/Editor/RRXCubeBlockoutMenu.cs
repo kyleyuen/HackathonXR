@@ -32,6 +32,13 @@ namespace RRX.Editor
         const float InnerGalleryMargin = 0.18f;
         const float UpperWalkwayPullInPerFloor = 1.12f;
 
+        /// <summary>
+        /// Inner mall apothem was originally <c>RRXPlayArea.RadiusMeters + boundary + margin</c> when the plaza
+        /// disc was 10 m. Kept fixed so reducing <see cref="RRXPlayArea.RadiusMeters"/> only shrinks the central
+        /// circle + boundary props, not the dodecagon storefronts.
+        /// </summary>
+        const float MallLayoutReferenceDiscRadius = 10f;
+
         [MenuItem("RRX/Generate Public Plaza Blockout", false, 40)]
         [MenuItem("Window/RRX/Generate Public Plaza Blockout", false, 40)]
         static void GenerateBlockoutMenu()
@@ -80,8 +87,11 @@ namespace RRX.Editor
         public static void RunBlockoutGeneration()
         {
             EnsureMaterialFolder();
-            float R = RRXPlayArea.RadiusMeters;
+            float discR = RRXPlayArea.RadiusMeters;
             float t = BoundaryThickness;
+            float aInner = MallLayoutReferenceDiscRadius + t + InnerGalleryMargin;
+            float aWalkOuter = aInner + WalkwayDepthMeters;
+            float aStoreOuter = aWalkOuter + StoreDepthMeters;
 
             var tileWhiteMat = GetOrCreateMatPlazaTileWhite();
             var boundaryMat = GetOrCreateMat("RRX_Mat_Boundary", new Color(0.28f, 0.3f, 0.34f));
@@ -102,30 +112,24 @@ namespace RRX.Editor
 
             ClearEnvironmentChildren(root.transform);
 
-            float aInner = R + t + InnerGalleryMargin;
-            float aWalkOuter = aInner + WalkwayDepthMeters;
-            float aStoreOuter = aWalkOuter + StoreDepthMeters;
-
-            BuildFloorPhysicsDisc(root.transform, R, t);
-            BuildTiledMapFloor(root.transform, aStoreOuter, tileWhiteMat, darkTrimMat);
-            BuildBoundaryRing(root.transform, R, t, StoreStoryHeight * 0.92f, boundaryMat);
+            BuildFloorPhysicsDisc(root.transform, discR, t);
+            BuildTiledMapFloor(root.transform, aStoreOuter, tileWhiteMat, darkTrimMat,
+                RRXPlayArea.VirtualFloorHoleRadiusMeters);
+            BuildBoundaryRing(root.transform, discR, t, StoreStoryHeight * 0.92f, boundaryMat);
             BuildDodecagonMall(root.transform, aInner, aWalkOuter, aStoreOuter, glassMat, facadeMat, interiorWallMat,
                 darkTrimMat);
             BuildOuterCurtainWall(root.transform, aStoreOuter, interiorWallMat);
             BuildRailingsAllFloors(root.transform, aInner, accentMat);
             BuildCornerColumns(root.transform, aStoreOuter, interiorWallMat);
             BuildStoreInteriors(root.transform, aInner, aWalkOuter, aStoreOuter, propMat, interiorWallMat, accentMat);
-            BuildPlazaProps(root.transform, R, propMat, accentMat, interiorWallMat);
-            BuildPlazaExtraFurniture(root.transform, R, propMat, interiorWallMat);
             BuildCeiling(root.transform, aStoreOuter, interiorWallMat);
-            BuildHangingBanners(root.transform, R, aStoreOuter, propMat);
-            BuildZones(root.transform, R);
-            BuildAmbienceAudio(root.transform, R);
+            BuildZones(root.transform, discR);
+            BuildAmbienceAudio(root.transform, discR);
 
             Selection.activeGameObject = root;
             EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
             Debug.Log(
-                $"[RRX] Dodecagon mall: {DodecagonSides} sides × {MallFloorCount} floors, {WalkwayDepthMeters} m galleries, white tiles to outer radius, open-front stores. Save the scene.");
+                $"[RRX] Dodecagon mall generated with MR center domain radius {discR:0.##}m (virtual floor carved out in center). Save the scene.");
         }
 
         /// <summary>Edge bisector angle (XZ): midpoint of edge i lies at apothem * unit direction.</summary>
@@ -211,7 +215,8 @@ namespace RRX.Editor
             }
         }
 
-        static void BuildTiledMapFloor(Transform parent, float aStoreOuter, Material tileMat, Material borderMat)
+        static void BuildTiledMapFloor(Transform parent, float aStoreOuter, Material tileMat, Material borderMat,
+            float centerHoleRadius)
         {
             var holder = new GameObject("Plaza_FloorTiles");
             holder.transform.SetParent(parent, false);
@@ -219,6 +224,7 @@ namespace RRX.Editor
 
             float extent = MapBoundingRadius(aStoreOuter);
             float r2 = extent * extent + 0.25f;
+            float holeR2 = centerHoleRadius * centerHoleRadius;
             var count = 0;
 
             for (float x = -extent; x <= extent + 0.01f; x += TileStepMap)
@@ -226,6 +232,8 @@ namespace RRX.Editor
                 for (float z = -extent; z <= extent + 0.01f; z += TileStepMap)
                 {
                     if (x * x + z * z > r2)
+                        continue;
+                    if (x * x + z * z < holeR2)
                         continue;
 
                     var ix = Mathf.RoundToInt(x / TileStepMap);
@@ -661,9 +669,7 @@ namespace RRX.Editor
             srcMech.rolloffMode = AudioRolloffMode.Linear;
             srcMech.volume = 0.18f;
 
-            if (srcBed.clip == null || srcMech.clip == null)
-                Debug.LogWarning(
-                    "[RRX] Plaza ambience AudioSources have no clips. Add mall / HVAC loops under Assets/RRX/Audio and assign on Plaza_Audio.");
+            // Optional ambience: clips can be assigned later under Assets/RRX/Audio — no warning by default.
         }
 
         static void ClearEnvironmentChildren(Transform root)

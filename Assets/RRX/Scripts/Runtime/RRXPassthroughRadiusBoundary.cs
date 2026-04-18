@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using RRX.Core;
 using Unity.XR.CoreUtils;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -17,6 +18,8 @@ namespace RRX.Runtime
         const string TubeChildName = "RRX_PassthroughOccluderTube";
         const string LegacySphereChildName = "RRX_PassthroughOccluderSphere";
 
+        [SerializeField] bool _syncRadiusFromPlayArea = true;
+
         [SerializeField] float _radiusMeters = 5f;
         [Tooltip("Tube extends ±this many meters along world Y from the occluder root (should cover view frustum).")]
         [SerializeField] float _tubeHalfHeightMeters = 40f;
@@ -33,7 +36,14 @@ namespace RRX.Runtime
         void Awake()
         {
             ResolveCamera();
+            ApplyPlayAreaRadiusIfSynced();
             EnsureOccluderTube();
+        }
+
+        void ApplyPlayAreaRadiusIfSynced()
+        {
+            if (_syncRadiusFromPlayArea)
+                _radiusMeters = RRXPlayArea.VirtualFloorHoleRadiusMeters;
         }
 
         void OnDestroy()
@@ -206,6 +216,7 @@ namespace RRX.Runtime
 
         void OnValidate()
         {
+            ApplyPlayAreaRadiusIfSynced();
             _radiusMeters = Mathf.Max(0.1f, _radiusMeters);
             _tubeHalfHeightMeters = Mathf.Max(2f, _tubeHalfHeightMeters);
             _segments = Mathf.Clamp(_segments, 8, 96);

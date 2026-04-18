@@ -1,12 +1,14 @@
 Shader "RRX/PassthroughOccluder"
 {
-    // Opaque black occluder for MR. Used on an uncapped vertical tube (sides only): horizontal rays hit this
-    // mesh at the radius; vertical rays miss the open top/bottom so passthrough can show above/below.
+    // Depth-only occluder for MR: writes Z so virtual geometry outside the tube fails the depth test, but does
+    // not write color — passthrough / alpha-0 clear stays visible (no black ring). Queue before default Geometry
+    // so mall/walls draw after and respect this depth.
     SubShader
     {
-        Tags { "RenderType" = "Opaque" "Queue" = "Geometry+10" }
+        Tags { "RenderType" = "Opaque" "Queue" = "Geometry-400" }
         Pass
         {
+            ColorMask 0
             Cull Off
             ZWrite On
             ZTest LEqual

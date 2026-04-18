@@ -6,7 +6,10 @@ using UnityEngine.XR.Interaction.Toolkit.Inputs;
 namespace RRX.Locomotion
 {
     /// <summary>
-    /// Forward/back only from the <b>left</b> thumbstick Y axis (no strafe).
+    /// <b>Left</b> thumbstick full 360° planar move (forward/back + strafe + diagonals).
+    /// XRIT computes motion relative to the camera / HMD forward on the floor,
+    /// so physically turning your head redirects walk without rotating the rig.
+    /// Rig yaw changes only via <see cref="RRXTankYawTurnProvider"/> or tracking.
     /// </summary>
     public class RRXTankForwardMoveProvider : ContinuousMoveProviderBase
     {
@@ -31,8 +34,7 @@ namespace RRX.Locomotion
 
         protected override Vector2 ReadInput()
         {
-            var v = m_LeftHandMoveAction.action?.ReadValue<Vector2>() ?? Vector2.zero;
-            return new Vector2(0f, v.y);
+            return m_LeftHandMoveAction.action?.ReadValue<Vector2>() ?? Vector2.zero;
         }
     }
 }
