@@ -11,6 +11,7 @@ namespace RRX.Core
         public PatientVisualState Patient;
         public bool PhoneConnected;
         public bool NarcanUsed;
+    public int FailureCount;
         public float ScenarioTimeSeconds;
         public int RewindGeneration;
     }
