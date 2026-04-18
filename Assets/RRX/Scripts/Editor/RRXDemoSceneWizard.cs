@@ -100,6 +100,7 @@ namespace RRX.Editor
             BindActionReferencesOnControllers();
             EnsureControllerVisuals();
             RRXMrCameraMenu.TryApplyMrCameraHints(showDialogIfNoOrigin: false);
+            RRXPatientBuilder.SpawnOrRebuildPatient();
         }
 
         static void EnsureXrBootstrapOnRig()

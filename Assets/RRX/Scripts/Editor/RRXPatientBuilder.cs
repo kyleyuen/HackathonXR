@@ -1,0 +1,302 @@
+using RRX.Core;
+using RRX.Interactions;
+using Unity.XR.CoreUtils;
+using UnityEditor;
+using UnityEditor.SceneManagement;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using UnityEngine.XR.Interaction.Toolkit;
+
+namespace RRX.Editor
+{
+    /// <summary>
+    /// Spawns a blockout patient lying supine on the MR floor in front of the user so the player can kneel
+    /// / crouch next to them and "operate" — check responsiveness on the shoulder, pick up the phone to call
+    /// 911, and press the nasal-narcan hotspot. Wires up <see cref="PatientPresenter"/> to the scene's
+    /// <see cref="ScenarioRunner"/> automatically.
+    /// </summary>
+    static class RRXPatientBuilder
+    {
+        internal const string RootName = "RRX_Patient";
+        const string MatFolder = "Assets/RRX/Materials";
+
+        // Patient is placed in the XR rig's local forward: head close to the user, body extending away
+        // so when the user walks forward they approach the patient's head / chest / shoulders.
+        const float HeadLocalZ = 0.85f;
+        const float TorsoLocalZ = 1.30f;
+        const float PelvisLocalZ = 1.70f;
+        const float ThighLocalZ = 2.00f;
+        const float ShinLocalZ = 2.40f;
+        const float FootLocalZ = 2.62f;
+
+        [MenuItem("RRX/Spawn Patient In Front Of User", false, 45)]
+        [MenuItem("Window/RRX/Spawn Patient In Front Of User", false, 45)]
+        static void MenuSpawn()
+        {
+            var go = SpawnOrRebuildPatient();
+            if (go != null)
+                Selection.activeGameObject = go;
+            EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
+            Debug.Log("[RRX] Patient + interaction hotspots spawned 1.3m in front of the XR rig. Save the scene.");
+        }
+
+        /// <summary>Called by the demo scene wizard so the auto build pipeline always spawns a patient.</summary>
+        public static GameObject SpawnOrRebuildPatient()
+        {
+            var origin = Object.FindObjectOfType<XROrigin>();
+            Vector3 rigPos = origin != null ? origin.transform.position : Vector3.zero;
+            Quaternion rigRot = origin != null ? origin.transform.rotation : Quaternion.identity;
+
+            var existing = GameObject.Find(RootName);
+            if (existing != null)
+                Undo.DestroyObjectImmediate(existing);
+
+            var root = new GameObject(RootName);
+            Undo.RegisterCreatedObjectUndo(root, "RRX Patient");
+            root.transform.SetPositionAndRotation(rigPos, rigRot);
+
+            var skin = GetOrCreateMat("RRX_Mat_PatientSkin", new Color(0.82f, 0.70f, 0.62f));
+            var shirt = GetOrCreateMat("RRX_Mat_PatientShirt", new Color(0.35f, 0.48f, 0.60f));
+            var pants = GetOrCreateMat("RRX_Mat_PatientPants", new Color(0.20f, 0.24f, 0.30f));
+            var hair = GetOrCreateMat("RRX_Mat_PatientHair", new Color(0.12f, 0.10f, 0.09f));
+            var shoe = GetOrCreateMat("RRX_Mat_PatientShoe", new Color(0.08f, 0.08f, 0.09f));
+            var phoneMat = GetOrCreateMat("RRX_Mat_Phone", new Color(0.05f, 0.08f, 0.12f));
+            var hotspotMat = GetOrCreateMat("RRX_Mat_PatientHotspot", new Color(0.95f, 0.35f, 0.35f, 0.55f));
+            ApplyTransparent(hotspotMat);
+
+            BuildBody(root.transform, skin, shirt, pants, hair, shoe);
+
+            var presenter = root.AddComponent<PatientPresenter>();
+            Undo.RegisterCreatedObjectUndo(presenter, "RRX Patient Presenter");
+
+            var runner = Object.FindObjectOfType<ScenarioRunner>();
+            WirePresenterToRunner(runner, presenter);
+
+            BuildHotspot(root.transform, "Hotspot_Shoulder",
+                localCenter: new Vector3(-0.19f, 0.26f, TorsoLocalZ - 0.22f),
+                localSize: new Vector3(0.20f, 0.20f, 0.20f),
+                material: hotspotMat,
+                action: ScenarioAction.CheckResponsiveness,
+                runner: runner);
+
+            BuildHotspot(root.transform, "Hotspot_NasalNarcan",
+                localCenter: new Vector3(0f, 0.30f, HeadLocalZ - 0.02f),
+                localSize: new Vector3(0.18f, 0.14f, 0.14f),
+                material: hotspotMat,
+                action: ScenarioAction.AdministerNarcan,
+                runner: runner);
+
+            BuildPhone(root.transform, phoneMat, runner);
+
+            return root;
+        }
+
+        static void BuildBody(Transform root, Material skin, Material shirt, Material pants, Material hair,
+            Material shoe)
+        {
+            BuildCube(root, "Torso", shirt,
+                new Vector3(0f, 0.13f, TorsoLocalZ),
+                new Vector3(0.42f, 0.22f, 0.58f));
+            BuildCube(root, "Pelvis", pants,
+                new Vector3(0f, 0.12f, PelvisLocalZ),
+                new Vector3(0.38f, 0.20f, 0.18f));
+
+            BuildCube(root, "ThighLeft", pants,
+                new Vector3(-0.10f, 0.12f, ThighLocalZ),
+                new Vector3(0.14f, 0.18f, 0.40f));
+            BuildCube(root, "ShinLeft", pants,
+                new Vector3(-0.10f, 0.10f, ShinLocalZ),
+                new Vector3(0.12f, 0.14f, 0.40f));
+            BuildCube(root, "ShoeLeft", shoe,
+                new Vector3(-0.10f, 0.08f, FootLocalZ),
+                new Vector3(0.12f, 0.10f, 0.20f));
+
+            BuildCube(root, "ThighRight", pants,
+                new Vector3(0.10f, 0.12f, ThighLocalZ),
+                new Vector3(0.14f, 0.18f, 0.40f));
+            BuildCube(root, "ShinRight", pants,
+                new Vector3(0.10f, 0.10f, ShinLocalZ),
+                new Vector3(0.12f, 0.14f, 0.40f));
+            BuildCube(root, "ShoeRight", shoe,
+                new Vector3(0.10f, 0.08f, FootLocalZ),
+                new Vector3(0.12f, 0.10f, 0.20f));
+
+            BuildCube(root, "UpperArmLeft", shirt,
+                new Vector3(-0.28f, 0.13f, TorsoLocalZ - 0.06f),
+                new Vector3(0.10f, 0.12f, 0.42f));
+            BuildCube(root, "ForearmLeft", skin,
+                new Vector3(-0.30f, 0.10f, TorsoLocalZ + 0.30f),
+                new Vector3(0.08f, 0.10f, 0.36f));
+            BuildCube(root, "HandLeft", skin,
+                new Vector3(-0.30f, 0.10f, TorsoLocalZ + 0.52f),
+                new Vector3(0.08f, 0.05f, 0.12f));
+
+            BuildCube(root, "UpperArmRight", shirt,
+                new Vector3(0.28f, 0.13f, TorsoLocalZ - 0.06f),
+                new Vector3(0.10f, 0.12f, 0.42f));
+            BuildCube(root, "ForearmRight", skin,
+                new Vector3(0.30f, 0.10f, TorsoLocalZ + 0.30f),
+                new Vector3(0.08f, 0.10f, 0.36f));
+            BuildCube(root, "HandRight", skin,
+                new Vector3(0.30f, 0.10f, TorsoLocalZ + 0.52f),
+                new Vector3(0.08f, 0.05f, 0.12f));
+
+            BuildCube(root, "Neck", skin,
+                new Vector3(0f, 0.15f, HeadLocalZ + 0.14f),
+                new Vector3(0.11f, 0.10f, 0.08f));
+            BuildSphere(root, "Head", skin,
+                new Vector3(0f, 0.18f, HeadLocalZ),
+                0.12f);
+            BuildCube(root, "Hair", hair,
+                new Vector3(0f, 0.25f, HeadLocalZ - 0.04f),
+                new Vector3(0.20f, 0.06f, 0.24f));
+        }
+
+        static GameObject BuildCube(Transform parent, string name, Material mat, Vector3 localPos,
+            Vector3 localScale)
+        {
+            var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            go.name = name;
+            go.transform.SetParent(parent, false);
+            Undo.RegisterCreatedObjectUndo(go, name);
+            go.transform.localPosition = localPos;
+            go.transform.localRotation = Quaternion.identity;
+            go.transform.localScale = localScale;
+            ApplyMat(go, mat);
+            return go;
+        }
+
+        static GameObject BuildSphere(Transform parent, string name, Material mat, Vector3 localPos,
+            float radius)
+        {
+            var go = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            go.name = name;
+            go.transform.SetParent(parent, false);
+            Undo.RegisterCreatedObjectUndo(go, name);
+            go.transform.localPosition = localPos;
+            go.transform.localScale = Vector3.one * (radius * 2f);
+            ApplyMat(go, mat);
+            return go;
+        }
+
+        static void BuildHotspot(Transform parent, string name, Vector3 localCenter, Vector3 localSize,
+            Material material, ScenarioAction action, ScenarioRunner runner)
+        {
+            var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            go.name = name;
+            go.transform.SetParent(parent, false);
+            Undo.RegisterCreatedObjectUndo(go, name);
+            go.transform.localPosition = localCenter;
+            go.transform.localScale = localSize;
+            ApplyMat(go, material);
+
+            var col = go.GetComponent<BoxCollider>();
+            if (col != null)
+                col.isTrigger = true;
+
+            var interactable = Undo.AddComponent<XRSimpleInteractable>(go);
+            interactable.colliders.Clear();
+            if (col != null)
+                interactable.colliders.Add(col);
+
+            var bind = Undo.AddComponent<ScenarioXRSelectAction>(go);
+            bind.SetAction(action);
+            bind.SetRunner(runner);
+        }
+
+        static void BuildPhone(Transform root, Material phoneMat, ScenarioRunner runner)
+        {
+            var phone = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            phone.name = "RRX_Patient_Phone";
+            phone.transform.SetParent(root, false);
+            Undo.RegisterCreatedObjectUndo(phone, phone.name);
+            phone.transform.localPosition = new Vector3(0.42f, 0.04f, 0.95f);
+            phone.transform.localRotation = Quaternion.Euler(0f, 18f, 0f);
+            phone.transform.localScale = new Vector3(0.08f, 0.018f, 0.16f);
+            ApplyMat(phone, phoneMat);
+
+            var rb = Undo.AddComponent<Rigidbody>(phone);
+            rb.isKinematic = true;
+            rb.useGravity = false;
+
+            var grab = Undo.AddComponent<XRGrabInteractable>(phone);
+            grab.movementType = XRBaseInteractable.MovementType.Instantaneous;
+            grab.trackPosition = true;
+            grab.trackRotation = true;
+            grab.throwOnDetach = false;
+
+            var bind = Undo.AddComponent<ScenarioXRSelectAction>(phone);
+            bind.SetAction(ScenarioAction.Call911);
+            bind.SetRunner(runner);
+        }
+
+        static void WirePresenterToRunner(ScenarioRunner runner, PatientPresenter presenter)
+        {
+            if (runner == null || presenter == null)
+                return;
+            var so = new SerializedObject(runner);
+            var prop = so.FindProperty("_patient");
+            if (prop == null)
+                return;
+            prop.objectReferenceValue = presenter;
+            so.ApplyModifiedProperties();
+            EditorUtility.SetDirty(runner);
+        }
+
+        static void ApplyMat(GameObject go, Material mat)
+        {
+            if (mat == null)
+                return;
+            var r = go.GetComponent<MeshRenderer>();
+            if (r != null)
+                r.sharedMaterial = mat;
+        }
+
+        static Material GetOrCreateMat(string assetName, Color color)
+        {
+            var path = $"{MatFolder}/{assetName}.mat";
+            var existing = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (existing != null)
+                return existing;
+
+            var shader = Shader.Find("Standard");
+            if (shader == null) shader = Shader.Find("Universal Render Pipeline/Lit");
+            if (shader == null) shader = Shader.Find("Sprites/Default");
+
+            var mat = new Material(shader);
+            if (mat.HasProperty("_Color")) mat.color = color;
+            if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", color);
+            EnsureMaterialFolder();
+            AssetDatabase.CreateAsset(mat, path);
+            return mat;
+        }
+
+        /// <summary>Upgrades a material to alpha-blend transparency so hotspot cubes show as tinted overlays.</summary>
+        static void ApplyTransparent(Material mat)
+        {
+            if (mat == null) return;
+            if (mat.HasProperty("_Mode")) mat.SetFloat("_Mode", 3f);
+            if (mat.HasProperty("_Surface")) mat.SetFloat("_Surface", 1f);
+            mat.SetOverrideTag("RenderType", "Transparent");
+            if (mat.HasProperty("_SrcBlend")) mat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+            if (mat.HasProperty("_DstBlend")) mat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+            if (mat.HasProperty("_ZWrite")) mat.SetInt("_ZWrite", 0);
+            mat.DisableKeyword("_ALPHATEST_ON");
+            mat.EnableKeyword("_ALPHABLEND_ON");
+            mat.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+            mat.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+            EditorUtility.SetDirty(mat);
+        }
+
+        static void EnsureMaterialFolder()
+        {
+            if (!AssetDatabase.IsValidFolder(MatFolder))
+            {
+                var parent = "Assets/RRX";
+                if (!AssetDatabase.IsValidFolder(parent))
+                    AssetDatabase.CreateFolder("Assets", "RRX");
+                AssetDatabase.CreateFolder(parent, "Materials");
+            }
+        }
+    }
+}
