@@ -16,8 +16,9 @@ namespace RRX.Environment
         [SerializeField] float _walkSpeedMin = 0.55f;
         [SerializeField] float _walkSpeedMax = 1.05f;
         [SerializeField] float _targetReachEpsilon = 0.35f;
-        [SerializeField] float _showDistanceMeters = 32f;
-        [SerializeField] float _hideDistanceMeters = 38f;
+        [SerializeField] float _showDistanceMeters = 16f;
+        [SerializeField] float _hideDistanceMeters = 19f;
+        [SerializeField] float _playerExclusionRadiusMeters = 5f;
 
         Transform _camera;
         Pedestrian[] _peds;
@@ -43,6 +44,8 @@ namespace RRX.Environment
 
             float maxR = Mathf.Max(0.5f, RRXPlayArea.RadiusMeters - 0.4f);
             float minR = Mathf.Clamp(_minRadiusFromCenter, 0.2f, maxR * 0.95f);
+            var playerXZ = PlayerXZ();
+            var exR = EffectiveExclusionRadius(maxR);
 
             _peds = new Pedestrian[Mathf.Max(0, _pedestrianCount)];
 
@@ -50,7 +53,7 @@ namespace RRX.Environment
             {
                 var root = new GameObject($"Pedestrian_{i + 1}");
                 root.transform.SetParent(transform, false);
-                root.transform.position = RandomDiscPoint(minR, maxR);
+                root.transform.position = RandomDiscPoint(minR, maxR, playerXZ, exR);
 
                 var body = GameObject.CreatePrimitive(PrimitiveType.Capsule);
                 body.name = "Body";
@@ -78,7 +81,7 @@ namespace RRX.Environment
                 {
                     Root = root.transform,
                     Renderers = new[] { br, hr },
-                    Target = RandomDiscPoint(minR, maxR),
+                    Target = RandomDiscPoint(minR, maxR, playerXZ, exR),
                     Speed = Random.Range(_walkSpeedMin, _walkSpeedMax),
                 };
             }
@@ -98,11 +101,82 @@ namespace RRX.Environment
             r.sharedMaterial = m;
         }
 
-        static Vector3 RandomDiscPoint(float minR, float maxR)
+        /// <summary>
+        /// Requested personal space, capped so points can still exist on the plaza annulus (radius cannot exceed outer ring).
+        /// </summary>
+        float EffectiveExclusionRadius(float maxPlazaR)
+        {
+            var cap = Mathf.Max(0.2f, maxPlazaR - 0.08f);
+            return Mathf.Min(_playerExclusionRadiusMeters, cap);
+        }
+
+        static Vector3 PlayerXZ()
+        {
+            var oxr = FindObjectOfType<XROrigin>();
+            var cam = oxr != null && oxr.Camera != null ? oxr.Camera.transform : Camera.main != null ? Camera.main.transform : null;
+            if (cam == null)
+                return Vector3.zero;
+            var p = cam.position;
+            return new Vector3(p.x, 0f, p.z);
+        }
+
+        static Vector3 RandomDiscPoint(float minR, float maxR, Vector3 playerXZ, float excludeR)
+        {
+            const int maxAttempts = 48;
+            for (var a = 0; a < maxAttempts; a++)
+            {
+                var ang = Random.Range(0f, Mathf.PI * 2f);
+                var rad = Random.Range(minR, maxR);
+                var p = new Vector3(Mathf.Cos(ang) * rad, 0f, Mathf.Sin(ang) * rad);
+                if (SqrXZDistance(p, playerXZ) >= excludeR * excludeR)
+                    return p;
+            }
+
+            // Fallback: opposite side of play disc from player (still on annulus if possible).
+            var dir = (Vector3.zero - playerXZ);
+            dir.y = 0f;
+            if (dir.sqrMagnitude < 0.01f)
+                dir = Vector3.forward;
+            dir = dir.normalized * Mathf.Clamp((minR + maxR) * 0.5f, minR, maxR);
+            var q = new Vector3(dir.x, 0f, dir.z);
+            if (SqrXZDistance(q, playerXZ) < excludeR * excludeR)
+                q = dir.normalized * Mathf.Max(maxR, excludeR + 0.5f);
+            return q;
+        }
+
+        static Vector3 RandomDiscPointNoExclusion(float minR, float maxR)
         {
             var ang = Random.Range(0f, Mathf.PI * 2f);
             var rad = Random.Range(minR, maxR);
             return new Vector3(Mathf.Cos(ang) * rad, 0f, Mathf.Sin(ang) * rad);
+        }
+
+        static float SqrXZDistance(Vector3 a, Vector3 b)
+        {
+            var dx = a.x - b.x;
+            var dz = a.z - b.z;
+            return dx * dx + dz * dz;
+        }
+
+        static void PushOutsidePlayerExclusion(ref Vector3 xz, Vector3 playerXZ, float excludeR)
+        {
+            var dx = xz.x - playerXZ.x;
+            var dz = xz.z - playerXZ.z;
+            var r2 = dx * dx + dz * dz;
+            var ex2 = excludeR * excludeR;
+            if (r2 >= ex2)
+                return;
+            if (r2 < 1e-8f)
+            {
+                var ang = Random.Range(0f, Mathf.PI * 2f);
+                xz.x = playerXZ.x + Mathf.Cos(ang) * excludeR;
+                xz.z = playerXZ.z + Mathf.Sin(ang) * excludeR;
+                return;
+            }
+
+            var inv = excludeR / Mathf.Sqrt(r2);
+            xz.x = playerXZ.x + dx * inv;
+            xz.z = playerXZ.z + dz * inv;
         }
 
         void Update()
@@ -120,6 +194,8 @@ namespace RRX.Environment
 
             float maxR = Mathf.Max(0.5f, RRXPlayArea.RadiusMeters - 0.4f);
             float minR = Mathf.Clamp(_minRadiusFromCenter, 0.2f, maxR * 0.95f);
+            var playerXZ = canCull ? new Vector3(camPos.x, 0f, camPos.z) : Vector3.zero;
+            var exR = EffectiveExclusionRadius(maxR);
 
             for (var i = 0; i < _peds.Length; i++)
             {
@@ -145,18 +221,31 @@ namespace RRX.Environment
 
                 var xz = p.Root.position;
                 xz.y = 0f;
+                if (canCull)
+                    PushOutsidePlayerExclusion(ref xz, playerXZ, exR);
+
                 var to = p.Target;
+                to.y = 0f;
+                if (canCull && SqrXZDistance(to, playerXZ) < exR * exR)
+                    p.Target = RandomDiscPoint(minR, maxR, playerXZ, exR);
+
+                to = p.Target;
                 to.y = 0f;
                 var delta = to - xz;
                 if (delta.sqrMagnitude < _targetReachEpsilon * _targetReachEpsilon)
                 {
-                    p.Target = RandomDiscPoint(minR, maxR);
+                    p.Target = canCull
+                        ? RandomDiscPoint(minR, maxR, playerXZ, exR)
+                        : RandomDiscPointNoExclusion(minR, maxR);
                     p.Speed = Random.Range(_walkSpeedMin, _walkSpeedMax);
                 }
                 else
                 {
                     var step = p.Speed * Time.deltaTime;
-                    p.Root.position = xz + delta.normalized * Mathf.Min(step, delta.magnitude);
+                    xz += delta.normalized * Mathf.Min(step, delta.magnitude);
+                    if (canCull)
+                        PushOutsidePlayerExclusion(ref xz, playerXZ, exR);
+                    p.Root.position = new Vector3(xz.x, 0f, xz.z);
                     if (delta.sqrMagnitude > 0.0001f)
                         p.Root.rotation = Quaternion.LookRotation(delta.normalized, Vector3.up);
                 }

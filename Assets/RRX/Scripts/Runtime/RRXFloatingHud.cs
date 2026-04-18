@@ -21,6 +21,9 @@ namespace RRX.UI
         const int CanvasRefPixels = 900;
         const int CanvasRefPixelsY = 560;
         const float TriggerThreshold = 0.82f;
+        const float SplitPanelSpacing = 110f;
+        const float SplitPanelOpenYawDegrees = 14f;
+        const float SplitPanelOpenPitchDegrees = 5f;
 
         [SerializeField] float _forwardMeters = 0.72f;
         [SerializeField] float _downMeters = 0.05f;
@@ -236,7 +239,7 @@ namespace RRX.UI
 
             var row = _splitPanel.AddComponent<HorizontalLayoutGroup>();
             row.childAlignment = TextAnchor.UpperCenter;
-            row.spacing = 22f;
+            row.spacing = SplitPanelSpacing;
             row.padding = new RectOffset(24, 24, 28, 28);
             row.childControlHeight = true;
             row.childControlWidth = true;
@@ -246,6 +249,10 @@ namespace RRX.UI
             var splitRt = _splitPanel.GetComponent<RectTransform>();
             _leftPanelRect = CreatePanelColumn(splitRt, "MenusPanel", true).GetComponent<RectTransform>();
             _rightPanelRect = CreatePanelColumn(splitRt, "ToolsPanel", false).GetComponent<RectTransform>();
+
+            // Slight outward “double window” skew: tops lean back, outer edges swing away from center gap.
+            _leftPanelRect.localRotation = Quaternion.Euler(SplitPanelOpenPitchDegrees, SplitPanelOpenYawDegrees, 0f);
+            _rightPanelRect.localRotation = Quaternion.Euler(SplitPanelOpenPitchDegrees, -SplitPanelOpenYawDegrees, 0f);
         }
 
         GameObject CreatePanelColumn(RectTransform parent, string name, bool menusColumn)
