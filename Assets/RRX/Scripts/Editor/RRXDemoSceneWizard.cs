@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using RRX.Environment;
 using RRX.Runtime;
 using RRX.UI;
 using UnityEditor;
@@ -42,6 +43,15 @@ namespace RRX.Editor
             Debug.Log("[RRX] Floating HUD added under XR camera (if origin present). Save the scene.");
         }
 
+        [MenuItem("RRX/Add Mall Crowd (Pedestrians)", false, 27)]
+        [MenuItem("Window/RRX/Add Mall Crowd (Pedestrians)", false, 27)]
+        static void MenuAddMallCrowd()
+        {
+            EnsureMallCrowd();
+            EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
+            Debug.Log("[RRX] Mall crowd added. Save the scene.");
+        }
+
         [MenuItem("RRX/Fix Controller UI (XR Ray → Buttons)", false, 26)]
         [MenuItem("Window/RRX/Fix Controller UI (XR Ray → Buttons)", false, 26)]
         static void MenuFixControllerUi()
@@ -82,6 +92,7 @@ namespace RRX.Editor
             EnsureFloorTrackingForRoomScale();
             RRXCubeBlockoutMenu.RunBlockoutGeneration();
             EnsureFloatingHud();
+            EnsureMallCrowd();
             EnsureXrUiEventSystemForControllers();
             EnsureRayInteractorManagersLinked();
             EnsureInteractorLineVisualsVisible();
@@ -243,6 +254,16 @@ namespace RRX.Editor
             go.transform.localRotation = Quaternion.identity;
             go.transform.localScale = Vector3.one;
             Undo.AddComponent<RRXFloatingHud>(go);
+        }
+
+        static void EnsureMallCrowd()
+        {
+            if (Object.FindObjectOfType<RRXMallCrowd>() != null)
+                return;
+
+            var go = new GameObject("RRX_MallCrowd");
+            Undo.RegisterCreatedObjectUndo(go, "RRX Mall Crowd");
+            Undo.AddComponent<RRXMallCrowd>(go);
         }
 
         static GameObject TryFindXrOriginPrefabAsset()

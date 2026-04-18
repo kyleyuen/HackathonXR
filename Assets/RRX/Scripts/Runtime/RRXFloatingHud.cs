@@ -1,16 +1,17 @@
 using TMPro;
 using RRX.Runtime;
 using UnityEngine;
-using UnityEngine.EventSystems;
 using UnityEngine.UI;
 using Unity.XR.CoreUtils;
+using UnityEngine.XR;
 using UnityEngine.XR.Interaction.Toolkit.UI;
 
 namespace RRX.UI
 {
     /// <summary>
     /// World-space HUD parented to the XR headset camera: start menu (Start / Settings / Exit / Help),
-    /// then splits into left (menus) and right (tools + inventory). Back returns to the start menu.
+    /// then two separate side panels (menus | tools). Back returns to the start menu.
+    /// In split mode, both triggers (L2/R2) chord toggles panel visibility when not aiming at either panel.
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class RRXFloatingHud : MonoBehaviour
@@ -19,6 +20,7 @@ namespace RRX.UI
         const float ButtonBackdropAlpha = 0.85f;
         const int CanvasRefPixels = 900;
         const int CanvasRefPixelsY = 560;
+        const float TriggerThreshold = 0.82f;
 
         [SerializeField] float _forwardMeters = 0.72f;
         [SerializeField] float _downMeters = 0.05f;
@@ -28,10 +30,15 @@ namespace RRX.UI
         Canvas _canvas;
         CanvasScaler _scaler;
         RectTransform _rootRect;
+        Image _backdropImage;
         GameObject _mainMenuPanel;
         GameObject _splitPanel;
-        GameObject _leftColumn;
-        GameObject _rightColumn;
+        CanvasGroup _splitCanvasGroup;
+        RectTransform _leftPanelRect;
+        RectTransform _rightPanelRect;
+
+        bool _splitMenuVisible = true;
+        bool _bothTriggersHeldLast;
 
         void Awake()
         {
@@ -52,6 +59,96 @@ namespace RRX.UI
         void OnEnable()
         {
             TryParentToXrCamera();
+        }
+
+        void Update()
+        {
+            if (_splitPanel == null || !_splitPanel.activeInHierarchy || _leftPanelRect == null || _rightPanelRect == null)
+                return;
+
+            var lv = ReadTrigger(XRNode.LeftHand);
+            var rv = ReadTrigger(XRNode.RightHand);
+            var bothNow = lv >= TriggerThreshold && rv >= TriggerThreshold;
+            if (bothNow && !_bothTriggersHeldLast)
+            {
+                if (!_splitMenuVisible)
+                    SetSplitMenuVisible(true);
+                else if (!IsAimingAtEitherPanel())
+                    SetSplitMenuVisible(false);
+            }
+
+            _bothTriggersHeldLast = bothNow;
+        }
+
+        static float ReadTrigger(XRNode node)
+        {
+            var dev = InputDevices.GetDeviceAtXRNode(node);
+            if (!dev.isValid || !dev.TryGetFeatureValue(CommonUsages.trigger, out var v))
+                return 0f;
+            return v;
+        }
+
+        bool IsAimingAtEitherPanel()
+        {
+            if (!_splitMenuVisible)
+                return false;
+
+            if (TryGetControllerRay(XRNode.LeftHand, out var rayL))
+            {
+                if (RayHitsRectTransform(rayL, _leftPanelRect) || RayHitsRectTransform(rayL, _rightPanelRect))
+                    return true;
+            }
+
+            if (TryGetControllerRay(XRNode.RightHand, out var rayR))
+            {
+                if (RayHitsRectTransform(rayR, _leftPanelRect) || RayHitsRectTransform(rayR, _rightPanelRect))
+                    return true;
+            }
+
+            return false;
+        }
+
+        static bool TryGetControllerRay(XRNode node, out Ray worldRay)
+        {
+            worldRay = default;
+            var dev = InputDevices.GetDeviceAtXRNode(node);
+            if (!dev.isValid)
+                return false;
+            if (!dev.TryGetFeatureValue(CommonUsages.devicePosition, out var pos))
+                return false;
+            if (!dev.TryGetFeatureValue(CommonUsages.deviceRotation, out var rot))
+                return false;
+            worldRay = new Ray(pos, rot * Vector3.forward);
+            return true;
+        }
+
+        static bool RayHitsRectTransform(Ray worldRay, RectTransform rt)
+        {
+            if (rt == null)
+                return false;
+
+            rt.GetWorldCorners(_cornerScratch);
+            var normal = (-rt.forward).normalized;
+            var plane = new Plane(normal, _cornerScratch[0]);
+            if (!plane.Raycast(worldRay, out var dist))
+                return false;
+
+            var world = worldRay.GetPoint(dist);
+            var local = rt.InverseTransformPoint(world);
+            return rt.rect.Contains(new Vector2(local.x, local.y));
+        }
+
+        static readonly Vector3[] _cornerScratch = new Vector3[4];
+
+        void SetSplitMenuVisible(bool visible)
+        {
+            _splitMenuVisible = visible;
+            if (_splitCanvasGroup == null)
+                return;
+
+            _splitCanvasGroup.alpha = visible ? 1f : 0f;
+            _splitCanvasGroup.interactable = visible;
+            _splitCanvasGroup.blocksRaycasts = visible;
         }
 
         void LateUpdate()
@@ -121,10 +218,10 @@ namespace RRX.UI
             rt.localScale = new Vector3(0.001f, 0.001f, 0.001f);
             _rootRect = rt;
 
-            var backdrop = CreateUiObject<Image>("Backdrop", rt);
-            StretchFull(backdrop.rectTransform);
-            backdrop.color = new Color(0.06f, 0.07f, 0.09f, PanelOpacity);
-            backdrop.raycastTarget = true;
+            _backdropImage = CreateUiObject<Image>("Backdrop", rt);
+            StretchFull(_backdropImage.rectTransform);
+            _backdropImage.color = new Color(0.06f, 0.07f, 0.09f, PanelOpacity);
+            _backdropImage.raycastTarget = true;
 
             _mainMenuPanel = CreateVerticalPanel("MainMenu", rt, 48f);
             StretchFull(_mainMenuPanel.GetComponent<RectTransform>());
@@ -135,37 +232,32 @@ namespace RRX.UI
             StretchFull(_splitPanel.GetComponent<RectTransform>());
             _splitPanel.SetActive(false);
 
-            var splitRt = _splitPanel.GetComponent<RectTransform>();
+            _splitCanvasGroup = _splitPanel.AddComponent<CanvasGroup>();
+
             var row = _splitPanel.AddComponent<HorizontalLayoutGroup>();
             row.childAlignment = TextAnchor.UpperCenter;
-            row.spacing = 10f;
+            row.spacing = 22f;
             row.padding = new RectOffset(24, 24, 28, 28);
             row.childControlHeight = true;
             row.childControlWidth = true;
             row.childForceExpandHeight = true;
             row.childForceExpandWidth = true;
 
-            _leftColumn = CreateColumn("MenusColumn", splitRt, 1f, "Menus", true);
-            var divider = CreateUiObject<Image>("Divider", splitRt);
-            var divLe = divider.gameObject.AddComponent<LayoutElement>();
-            divLe.preferredWidth = 4f;
-            divLe.flexibleWidth = 0f;
-            divider.rectTransform.sizeDelta = new Vector2(4f, 0f);
-            divider.color = new Color(1f, 1f, 1f, 0.35f);
-            divider.raycastTarget = false;
-            _rightColumn = CreateColumn("ToolsColumn", splitRt, 1f, "Tools & Inventory", false);
+            var splitRt = _splitPanel.GetComponent<RectTransform>();
+            _leftPanelRect = CreatePanelColumn(splitRt, "MenusPanel", true).GetComponent<RectTransform>();
+            _rightPanelRect = CreatePanelColumn(splitRt, "ToolsPanel", false).GetComponent<RectTransform>();
         }
 
-        GameObject CreateColumn(string name, RectTransform parent, float flexW, string header, bool menusColumn)
+        GameObject CreatePanelColumn(RectTransform parent, string name, bool menusColumn)
         {
             var go = new GameObject(name, typeof(RectTransform), typeof(LayoutElement), typeof(Image));
             go.transform.SetParent(parent, false);
             var le = go.GetComponent<LayoutElement>();
-            le.flexibleWidth = flexW;
+            le.flexibleWidth = 1f;
             le.minWidth = 160f;
             var img = go.GetComponent<Image>();
-            img.color = new Color(0.12f, 0.13f, 0.16f, 0.25f);
-            img.raycastTarget = false;
+            img.color = new Color(0.06f, 0.07f, 0.09f, PanelOpacity);
+            img.raycastTarget = true;
 
             var v = go.AddComponent<VerticalLayoutGroup>();
             v.padding = new RectOffset(16, 16, 12, 12);
@@ -175,7 +267,7 @@ namespace RRX.UI
             v.childControlWidth = true;
             v.childForceExpandWidth = true;
 
-            AddHeader(go.transform, header);
+            AddHeader(go.transform, menusColumn ? "Menus" : "Tools & Inventory");
             if (menusColumn)
             {
                 AddPlaceholderButton(go.transform, "Scenario", null);
@@ -234,10 +326,16 @@ namespace RRX.UI
 
         void OnBackToMenuClicked()
         {
+            SetSplitMenuVisible(true);
             if (_splitPanel != null)
                 _splitPanel.SetActive(false);
             if (_mainMenuPanel != null)
                 _mainMenuPanel.SetActive(true);
+            if (_backdropImage != null)
+            {
+                _backdropImage.enabled = true;
+                _backdropImage.raycastTarget = true;
+            }
         }
 
         static void AddPlaceholderButton(Transform parent, string label, UnityEngine.Events.UnityAction onClick)
@@ -299,10 +397,16 @@ namespace RRX.UI
 
         void OnStartClicked()
         {
+            SetSplitMenuVisible(true);
             if (_mainMenuPanel != null)
                 _mainMenuPanel.SetActive(false);
             if (_splitPanel != null)
                 _splitPanel.SetActive(true);
+            if (_backdropImage != null)
+            {
+                _backdropImage.enabled = false;
+                _backdropImage.raycastTarget = false;
+            }
         }
 
         void OnSettingsClicked()
