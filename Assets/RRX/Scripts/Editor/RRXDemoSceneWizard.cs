@@ -23,7 +23,7 @@ namespace RRX.Editor
         const string PrefabPathAlt =
             "Packages/com.unity.xr.interaction.toolkit/Prefabs/XRI Default XR Rig.prefab";
 
-        /// <summary>One menu: XR rig + scenario + zones + cube MR room + passthrough-ready cameras.</summary>
+        /// <summary>One menu: XR rig + scenario + zones + public plaza MR blockout + passthrough-ready cameras.</summary>
         [MenuItem("RRX/Build Complete MR Scene (Auto)", false, -100)]
         [MenuItem("Window/RRX/Build Complete MR Scene (Auto)", false, -100)]
         static void MenuBuildCompleteMrSceneAuto()
@@ -62,7 +62,7 @@ namespace RRX.Editor
             Debug.Log($"[RRX] Saved and configured {scenePath} (full MR demo pipeline).");
         }
 
-        /// <summary>Scenario wiring + cube blockout + MR camera hints (same as <see cref="MenuBuildCompleteMrSceneAuto"/>).</summary>
+        /// <summary>Scenario wiring + plaza blockout + MR camera hints (same as <see cref="MenuBuildCompleteMrSceneAuto"/>).</summary>
         static void RunFullMrDemoPipeline()
         {
             SetupDemoInternal();

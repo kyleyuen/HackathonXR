@@ -44,7 +44,7 @@ RRX adds items to the top menu bar **`RRX`** and also under **`Window → RRX`**
    - Ensures **XR Interaction Manager** and **XR Origin (XR Rig)** exist (from XR Interaction Toolkit).
    - Disables the extra **Main Camera** if it conflicts with the XR rig.
    - Creates **`RRX_Scenario`** with **Scenario Runner**, **Scenario Debug Hotkeys**, wires **patient**, **interaction zone**, **Phone** and **Narcan** props.
-   - Generates **`RRX_Environment_Root`**: cube floor, **boundary walls** around the play area, interior partitions, sink/trash props (see §5 for size).
+   - Generates **`RRX_Environment_Root`**: **circular plaza floor** (walkable disc), **segmented boundary ring**, **storefront / infrastructure** ring, ceiling, concourse props, zone markers, ambience **AudioSources** (assign clips under `Assets/RRX/Audio`; see §5).
    - Applies **MR camera hints** on **`XROrigin`** (transparent clear color for passthrough-friendly composition when supported).
 4. **Save the scene**: **File → Save** (Ctrl/Cmd+S).
 
@@ -67,22 +67,21 @@ Use these if you only need part of the setup or you are debugging.
 | Menu path | What it does |
 |-----------|----------------|
 | **`RRX → Setup Demo In Active Scene`** | Scenario + patient + zones + phone/Narcan only (no cube room, no MR camera hints). |
-| **`RRX → Generate MR Cube Blockout`** | Only the **`RRX_Environment_Root`** cube environment (clears previous children under that root). |
+| **`RRX → Generate Public Plaza Blockout`** (or **Generate MR Cube Blockout**) | Only **`RRX_Environment_Root`**: public plaza blockout (clears previous children under that root). |
 | **`RRX → Apply MR Camera Hints To XR Origin`** | Only sets XR cameras to solid clear with alpha 0 on **`XROrigin`**. |
 | **`RRX → Quest Device Verify Checklist`** | Shows a short **Quest / MR** checklist dialog (does not build automatically). |
 
 ---
 
-## 5. Play area size (3 m vs 5 m “radius”)
+## 5. Play area size (circular plaza)
 
-The walkable MR pad is a **square** on the ground, centered at the scene origin, controlled in code:
+The walkable training floor is a **circle on XZ**, centered at the scene origin, controlled in code:
 
 - File: [`Assets/RRX/Scripts/Core/RRXPlayArea.cs`](Scripts/Core/RRXPlayArea.cs)
-- Constant: **`RRXPlayArea.RadiusMeters`**
-  - **`5f`** → floor roughly **10 m × 10 m** (half-extent 5 m along X and Z).
-  - **`3f`** → floor roughly **6 m × 6 m**.
+- Constant: **`RRXPlayArea.RadiusMeters`** — radius of the **walkable disc** in meters (default **10** → **20 m** diameter plaza floor). Storefronts and ceiling extend **outside** this radius.
+- Helper: **`RRXPlayArea.ContainsWalkableDiscXZ`** for runtime checks (locomotion / sensing).
 
-After changing this value, run **`RRX → Build Complete MR Scene (Auto)`** again (or at least **Generate MR Cube Blockout** + move scenario objects by re-running full auto) so layout and props stay consistent.
+After changing **`RadiusMeters`**, run **`RRX → Build Complete MR Scene (Auto)`** again (or at least **Generate Public Plaza Blockout**) so geometry and the scenario layout stay consistent.
 
 ---
 

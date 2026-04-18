@@ -1,13 +1,27 @@
+using UnityEngine;
+
 namespace RRX.Core
 {
     /// <summary>
-    /// Square play volume on XZ: coordinates stay within [-RadiusMeters, RadiusMeters] from the scene origin.
-    /// Passthrough shows your real room inside; virtual boundary walls sit at the edges.
-    /// Change <see cref="RadiusMeters"/> to <c>3f</c> for a smaller room.
+    /// Public plaza walkable disc on XZ: distance from origin in XZ should stay within <see cref="RadiusMeters"/>.
+    /// Surrounding storefront blockout extends beyond this radius; locomotion and sensing should use
+    /// <see cref="ContainsWalkableDiscXZ"/> for the training floor.
     /// </summary>
     public static class RRXPlayArea
     {
-        /// <summary>Half-extent along X and Z from center (meters). Total width/depth = 2 × this value.</summary>
-        public const float RadiusMeters = 5f;
+        /// <summary>Walkable plaza radius in meters (circular footprint on XZ).</summary>
+        public const float RadiusMeters = 10f;
+
+        /// <summary>True if (x,z) lies inside the walkable disc (inclusive of boundary).</summary>
+        public static bool ContainsWalkableDiscXZ(float x, float z)
+        {
+            return x * x + z * z <= RadiusMeters * RadiusMeters;
+        }
+
+        /// <summary>True if the point's XZ projection lies inside the walkable disc.</summary>
+        public static bool ContainsWalkableDiscXZ(Vector3 worldPosition)
+        {
+            return ContainsWalkableDiscXZ(worldPosition.x, worldPosition.z);
+        }
     }
 }
