@@ -28,7 +28,6 @@ namespace RRX.Editor
         const float StoreStoryHeight = 3.15f;
         const float CeilingY = MallFloorCount * FloorToFloor + StoreStoryHeight + 0.35f;
         const float TileStepMap = 0.62f;
-        const int MaxMapTiles = 3400;
         const float InnerGalleryMargin = 0.18f;
         const float UpperWalkwayPullInPerFloor = 1.12f;
 
@@ -189,7 +188,7 @@ namespace RRX.Editor
             Undo.RegisterCreatedObjectUndo(holder, "Plaza Floor Tiles");
 
             float extent = MapBoundingRadius(aStoreOuter);
-            float r2 = extent * extent;
+            float r2 = extent * extent + 0.25f;
             var count = 0;
 
             for (float x = -extent; x <= extent + 0.01f; x += TileStepMap)
@@ -211,8 +210,6 @@ namespace RRX.Editor
                     tile.transform.localScale = new Vector3(TileStepMap * 0.98f, 0.035f, TileStepMap * 0.98f);
                     ApplyMat(tile, mat);
                     count++;
-                    if (count >= MaxMapTiles)
-                        return;
                 }
             }
         }
@@ -277,7 +274,7 @@ namespace RRX.Editor
             }
         }
 
-        /// <summary>Five-wall store shell; opening faces the atrium (inward, -local Z relative to outward rotation).</summary>
+        /// <summary>U-shaped shell: back + side walls + floor only on outer half; opening at -local Z faces the atrium.</summary>
         static void BuildOpenFrontStoreShell(Transform parent, int floorIndex, int edgeIndex, float aWalkOuter,
             float aStoreOuter, float centerWorldY, float boxHeight, Material wallMat)
         {
@@ -285,7 +282,9 @@ namespace RRX.Editor
             float midA = (aWalkOuter + aStoreOuter) * 0.5f;
             float depth = aStoreOuter - aWalkOuter;
             float width = EdgeLengthForApothem(midA);
-            const float t = 0.14f;
+            const float t = 0.12f;
+            float shellZ = depth * 0.32f;
+            float shellDepth = depth * 0.58f;
 
             var root = new GameObject($"StoreOpen_L{floorIndex}_E{edgeIndex:00}");
             root.transform.SetParent(parent, false);
@@ -306,15 +305,13 @@ namespace RRX.Editor
             }
 
             Wall("Back", new Vector3(0f, 0f, depth * 0.5f - t * 0.5f),
-                new Vector3(width * 0.98f, boxHeight, t));
-            Wall("Left", new Vector3(-width * 0.5f + t * 0.5f, 0f, 0f),
-                new Vector3(t, boxHeight, depth * 0.96f));
-            Wall("Right", new Vector3(width * 0.5f - t * 0.5f, 0f, 0f),
-                new Vector3(t, boxHeight, depth * 0.96f));
-            Wall("Floor", new Vector3(0f, -boxHeight * 0.5f + t * 0.5f, 0f),
-                new Vector3(width * 0.96f, t, depth * 0.96f));
-            Wall("Ceiling", new Vector3(0f, boxHeight * 0.5f - t * 0.5f, 0f),
-                new Vector3(width * 0.96f, t, depth * 0.96f));
+                new Vector3(width * 0.96f, boxHeight, t));
+            Wall("Left", new Vector3(-width * 0.5f + t * 0.5f, 0f, shellZ),
+                new Vector3(t, boxHeight, shellDepth));
+            Wall("Right", new Vector3(width * 0.5f - t * 0.5f, 0f, shellZ),
+                new Vector3(t, boxHeight, shellDepth));
+            Wall("Floor", new Vector3(0f, -boxHeight * 0.5f + t * 0.5f, shellZ),
+                new Vector3(width * 0.92f, t, shellDepth));
         }
 
         static void BuildOuterCurtainWall(Transform parent, float aStoreOuter, Material wallMat)
@@ -339,13 +336,14 @@ namespace RRX.Editor
             rails.transform.SetParent(parent, false);
             Undo.RegisterCreatedObjectUndo(rails, "Plaza Railings");
 
-            const float railH = 1.05f;
-            const float postEvery = 1.35f;
+            const float handrailThicknessZ = 0.11f;
+            const float handrailHeightY = 0.1f;
+            const float postEvery = 1.25f;
 
             for (var f = 0; f < MallFloorCount; f++)
             {
                 float deckTopY = f * FloorToFloor + DeckSlabY;
-                float railY = deckTopY + 0.92f;
+                float handrailY = deckTopY + 1.02f;
                 float aInF = InnerApothemForFloor(f, aInner);
 
                 for (var v = 0; v < DodecagonSides; v++)
@@ -355,7 +353,7 @@ namespace RRX.Editor
                     var edgeVec = p1 - p0;
                     float edgeLen = edgeVec.magnitude;
                     var edgeDir = edgeVec / edgeLen;
-                    var mid = (p0 + p1) * 0.5f + Vector3.up * railY;
+                    var mid = (p0 + p1) * 0.5f + Vector3.up * handrailY;
 
                     var handrail = GameObject.CreatePrimitive(PrimitiveType.Cube);
                     handrail.name = $"HandrailRun_L{f}_V{v:00}";
@@ -363,21 +361,24 @@ namespace RRX.Editor
                     Undo.RegisterCreatedObjectUndo(handrail, handrail.name);
                     handrail.transform.position = mid;
                     handrail.transform.rotation = Quaternion.LookRotation(edgeDir, Vector3.up);
-                    handrail.transform.localScale = new Vector3(edgeLen * 1.01f, 0.08f, 0.12f);
+                    handrail.transform.localScale = new Vector3(handrailThicknessZ, handrailHeightY,
+                        edgeLen * 1.02f);
                     ApplyMat(handrail, railMat);
 
-                    int nPosts = Mathf.Clamp(Mathf.RoundToInt(edgeLen / postEvery), 2, 10);
+                    float postHeight = handrailY - deckTopY - 0.04f;
+                    float postCenterY = deckTopY + postHeight * 0.5f + 0.02f;
+                    int nPosts = Mathf.Clamp(Mathf.RoundToInt(edgeLen / postEvery), 2, 12);
                     for (var p = 0; p <= nPosts; p++)
                     {
                         float t = p / (float)nPosts;
                         var xz = p0 + edgeDir * (edgeLen * t);
-                        var postPos = xz + Vector3.up * (railY - 0.08f);
+                        var postPos = new Vector3(xz.x, postCenterY, xz.z);
                         var post = GameObject.CreatePrimitive(PrimitiveType.Cube);
                         post.name = $"RailPost_L{f}_V{v}_{p:00}";
                         post.transform.SetParent(rails.transform, false);
                         Undo.RegisterCreatedObjectUndo(post, post.name);
                         post.transform.position = postPos;
-                        post.transform.localScale = new Vector3(0.06f, railH * 0.48f, 0.06f);
+                        post.transform.localScale = new Vector3(0.07f, postHeight, 0.07f);
                         ApplyMat(post, railMat);
                     }
                 }
@@ -497,25 +498,23 @@ namespace RRX.Editor
             root.transform.rotation = Quaternion.Euler(0f, -yawRad * Mathf.Rad2Deg, 0f);
             Undo.RegisterCreatedObjectUndo(root, name);
 
-            var baseLeg = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            baseLeg.transform.SetParent(root.transform, false);
-            baseLeg.transform.localPosition = new Vector3(0f, 0.38f, 0f);
-            baseLeg.transform.localScale = new Vector3(0.1f, 0.76f, 0.1f);
-            ApplyMat(baseLeg, mat);
-
             var bar = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            bar.name = "RackBar";
             bar.transform.SetParent(root.transform, false);
-            bar.transform.localPosition = new Vector3(0f, 0.82f, 0f);
-            bar.transform.localScale = new Vector3(1.1f, 0.05f, 0.05f);
+            Undo.RegisterCreatedObjectUndo(bar, bar.name);
+            bar.transform.localPosition = new Vector3(0f, 0.55f, 0.04f);
+            bar.transform.localScale = new Vector3(0.95f, 0.05f, 0.07f);
             ApplyMat(bar, mat);
 
             for (var s = -1; s <= 1; s += 2)
             {
-                var arm = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                arm.transform.SetParent(root.transform, false);
-                arm.transform.localPosition = new Vector3(s * 0.45f, 0.72f, 0f);
-                arm.transform.localScale = new Vector3(0.04f, 0.38f, 0.04f);
-                ApplyMat(arm, mat);
+                var peg = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                peg.name = s < 0 ? "RackEnd_L" : "RackEnd_R";
+                peg.transform.SetParent(root.transform, false);
+                Undo.RegisterCreatedObjectUndo(peg, peg.name);
+                peg.transform.localPosition = new Vector3(s * 0.46f, 0.55f, 0f);
+                peg.transform.localScale = new Vector3(0.06f, 0.08f, 0.06f);
+                ApplyMat(peg, mat);
             }
         }
 
