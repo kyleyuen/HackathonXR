@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  RRX Mixed Reality manifest (Meta Quest 3 / 3S).
+
+  Declares the app as passthrough-primary MR so the Quest runtime:
+    * composites scene geometry over the live camera feed,
+    * yields to the room's Scene mesh instead of drawing the VR Guardian boundary,
+    * lets the player walk anywhere inside their configured Room / Space without a
+      full-screen safety fade (guardian only appears if the system cannot resolve a
+      Scene and the player actually leaves their mapped area).
+
+  Unity's Meta OpenXR plug-in merges additional entries from the OpenXR feature
+  settings; this file only needs the MR intent + passthrough feature declarations.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    package="com.unity3d.player">
+
+    <uses-feature
+        android:name="android.hardware.vr.headtracking"
+        android:required="true"
+        android:version="1" />
+
+    <!-- Meta Quest 3 / Quest Pro passthrough: treat as MR so Guardian becomes contextual -->
+    <uses-feature
+        android:name="com.oculus.feature.PASSTHROUGH"
+        android:required="true" />
+
+    <uses-feature
+        android:name="com.oculus.experimental.enabled"
+        android:required="false" />
+
+    <!-- Scene Understanding: lets Quest use the user's configured Room so boundary
+         fade does not trigger as long as the player stays inside their real room. -->
+    <uses-permission android:name="com.oculus.permission.USE_SCENE" />
+    <uses-feature
+        android:name="com.oculus.feature.BOUNDARYLESS_APP"
+        android:required="false" />
+
+    <application>
+        <activity
+            android:name="com.unity3d.player.UnityPlayerActivity"
+            android:theme="@style/UnityThemeSelector"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:configChanges="locale|fontScale|keyboard|keyboardHidden|mcc|mnc|navigation|orientation|screenLayout|screenSize|smallestScreenSize|touchscreen|uiMode"
+            android:screenOrientation="landscape"
+            android:resizeableActivity="false">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="com.oculus.intent.category.VR" />
+            </intent-filter>
+            <meta-data android:name="unityplayer.UnityActivity" android:value="true" />
+        </activity>
+
+        <!-- Quest launcher / OS splash composites the live passthrough behind our load
+             splash so there is no VR-style fade into the session. -->
+        <meta-data
+            android:name="com.oculus.ossplash.background"
+            android:value="passthrough-contextual" />
+
+        <!-- Target Quest 3 / 3S / Pro / 2 for the MR build. Overrides xrmanifest.androidlib's com.oculus.supportedDevices. -->
+        <meta-data
+            android:name="com.oculus.supportedDevices"
+            android:value="quest3|quest3s|questpro|quest2"
+            tools:replace="android:value" />
+
+        <!-- Hint the runtime that this is a Mixed Reality experience (keeps Guardian
+             contextual, so walking around inside a mapped Room does NOT fade the scene). -->
+        <meta-data
+            android:name="com.oculus.vr.focusaware"
+            android:value="true" />
+        <meta-data
+            android:name="com.oculus.intent.category.MR"
+            android:value="vr_only" />
+    </application>
+</manifest>

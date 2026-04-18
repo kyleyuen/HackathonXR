@@ -1,14 +1,17 @@
+using System.Collections;
 using UnityEngine;
 
 namespace RRX.Runtime
 {
     /// <summary>
-    /// Pins the XR rig root to its starting world pose so room-scale tracking never "drifts" the origin.
-    /// Head/hand tracking still applies to child camera/controllers; only the rig transform is clamped.
+    /// Pins the XR rig <em>root</em> to its starting world pose so room-scale tracking never "drifts"
+    /// the origin. Head/hand tracking still applies to the child camera/controllers — only the rig root
+    /// transform is clamped — so physical walking inside the room translates the camera normally through
+    /// the virtual scene without the rig itself sliding.
     /// </summary>
     /// <remarks>
-    /// The rig is held at its initial XZ + yaw. Y uses the initial Y so floor-tracking height changes
-    /// do not slide the rig vertically.
+    /// The starting pose is re-captured on the first two tracked frames so we never lock onto a stale
+    /// (0, 0, 0) pose captured before the XR subsystem reported the initial floor-tracked position.
     /// </remarks>
     [DefaultExecutionOrder(5000)]
     [DisallowMultipleComponent]
@@ -19,10 +22,21 @@ namespace RRX.Runtime
 
         Vector3 _anchorPosition;
         Quaternion _anchorRotation;
+        bool _anchorReady;
 
         void OnEnable()
         {
             CaptureAnchor();
+            StartCoroutine(RecaptureAfterTrackingSettles());
+        }
+
+        IEnumerator RecaptureAfterTrackingSettles()
+        {
+            yield return null;
+            CaptureAnchor();
+            yield return null;
+            CaptureAnchor();
+            _anchorReady = true;
         }
 
         void CaptureAnchor()
@@ -33,6 +47,9 @@ namespace RRX.Runtime
 
         void LateUpdate()
         {
+            if (!_anchorReady)
+                return;
+
             if (_lockPosition && transform.position != _anchorPosition)
                 transform.position = _anchorPosition;
 
