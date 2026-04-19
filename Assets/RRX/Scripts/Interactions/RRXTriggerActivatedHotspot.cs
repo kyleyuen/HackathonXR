@@ -20,8 +20,10 @@ namespace RRX.Interactions
         [SerializeField] InputActionReference _leftUiPress;
         [SerializeField] InputActionReference _rightUiPress;
         [SerializeField] float _cooldownSeconds = 0.25f;
+        [SerializeField] bool _rightTriggerOnly = true;
 
         readonly HashSet<XRBaseInteractor> _hovering = new HashSet<XRBaseInteractor>();
+        int _hoverCount;
         float _nextAllowedRealtime;
 
         void Awake()
@@ -57,6 +59,7 @@ namespace RRX.Interactions
             if (_runner != null)
                 _runner.OnResetRequested -= OnResetRequested;
             _hovering.Clear();
+            _hoverCount = 0;
         }
 
         public void SetRunner(ScenarioRunner runner) => _runner = runner;
@@ -69,13 +72,16 @@ namespace RRX.Interactions
 
         void Update()
         {
-            if (_runner == null || _hotspotTag == null || _hovering.Count == 0)
+            if (_runner == null || _hotspotTag == null || _hoverCount <= 0)
                 return;
             if (Time.realtimeSinceStartup < _nextAllowedRealtime)
                 return;
 
-            bool leftPressed = _leftUiPress != null && _leftUiPress.action != null && _leftUiPress.action.WasPressedThisFrame();
             bool rightPressed = _rightUiPress != null && _rightUiPress.action != null && _rightUiPress.action.WasPressedThisFrame();
+            bool leftPressed = !_rightTriggerOnly &&
+                               _leftUiPress != null &&
+                               _leftUiPress.action != null &&
+                               _leftUiPress.action.WasPressedThisFrame();
             if (!leftPressed && !rightPressed)
                 return;
 
@@ -117,12 +123,14 @@ namespace RRX.Interactions
         {
             if (args.interactorObject is XRBaseInteractor inputInteractor)
                 _hovering.Add(inputInteractor);
+            _hoverCount++;
         }
 
         void OnHoverExited(HoverExitEventArgs args)
         {
             if (args.interactorObject is XRBaseInteractor inputInteractor)
                 _hovering.Remove(inputInteractor);
+            _hoverCount = Mathf.Max(0, _hoverCount - 1);
         }
 
         void OnResetRequested(int _)

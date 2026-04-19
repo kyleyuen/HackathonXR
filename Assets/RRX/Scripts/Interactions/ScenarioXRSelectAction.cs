@@ -34,11 +34,20 @@ namespace RRX.Interactions
         public void SetRunner(ScenarioRunner runner) => _runner = runner;
         public void SetAction(ScenarioAction action) => _action = action;
 
-        void OnSelect(SelectEnterEventArgs _)
+        void OnSelect(SelectEnterEventArgs args)
         {
             if (_once && _fired) return;
             _fired = true;
-            _runner?.SubmitAction(_action);
+            if (_runner == null)
+                return;
+
+            var interactor = args.interactorObject as XRBaseInteractor;
+            var submission = new ScenarioActionSubmission(
+                _action,
+                ScenarioHotspotId.None,
+                interactor,
+                Time.realtimeSinceStartup);
+            _runner.TrySubmit(submission, out _);
         }
     }
 }

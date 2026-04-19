@@ -37,9 +37,9 @@ namespace RRX.UI
             if (_canvas != null && _xrOrigin != null && _xrOrigin.Camera != null)
                 _canvas.worldCamera = _xrOrigin.Camera;
 
-            WireButton(_check, () => _runner?.SubmitAction(ScenarioAction.CheckResponsiveness));
-            WireButton(_call, () => _runner?.SubmitAction(ScenarioAction.Call911));
-            WireButton(_narcan, () => _runner?.SubmitAction(ScenarioAction.AdministerNarcan));
+            WireButton(_check, () => Submit(ScenarioAction.CheckResponsiveness));
+            WireButton(_call, () => Submit(ScenarioAction.Call911));
+            WireButton(_narcan, () => Submit(ScenarioAction.AdministerNarcan));
             WireButton(_rewind, () => _runner?.RewindPreviousCheckpoint());
         }
 
@@ -53,6 +53,18 @@ namespace RRX.UI
                 return;
 
             button.onClick.AddListener(action);
+        }
+
+        void Submit(ScenarioAction action)
+        {
+            if (_runner == null)
+                return;
+            var submission = new ScenarioActionSubmission(
+                action,
+                ScenarioHotspotId.WristUi,
+                null,
+                Time.realtimeSinceStartup);
+            _runner.TrySubmit(submission, out _);
         }
     }
 }

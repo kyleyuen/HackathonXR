@@ -1,7 +1,6 @@
 using TMPro;
 using RRX.Core;
 using RRX.Runtime;
-using Unity.XR.CoreUtils;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -12,7 +11,6 @@ namespace RRX.UI
     public sealed class RRXWristObjectivePanel : MonoBehaviour
     {
         [SerializeField] ScenarioRunner _runner;
-        [SerializeField] XROrigin _origin;
         [SerializeField] ScenarioClock _clock;
         [SerializeField] TMP_Text _titleText;
         [SerializeField] TMP_Text _hintText;
@@ -20,22 +18,21 @@ namespace RRX.UI
         [SerializeField] Button _hintButton;
         [SerializeField] Button _resetButton;
         [SerializeField] Image _panelTint;
-        [SerializeField] float _faceLerp = 8f;
+        [SerializeField] Vector3 _controllerLocalPosition = new Vector3(0f, 0.055f, 0.015f);
+        [SerializeField] Vector3 _controllerLocalEuler = new Vector3(0f, 0f, 0f);
+        [SerializeField] Vector3 _controllerLocalScale = new Vector3(0.0007f, 0.0007f, 0.0007f);
 
-        Quaternion _restLocalRotation;
         float _failureFlashUntil;
 
         void Awake()
         {
             if (_runner == null)
                 _runner = FindObjectOfType<ScenarioRunner>();
-            if (_origin == null)
-                _origin = FindObjectOfType<XROrigin>();
             if (_clock == null)
                 _clock = FindObjectOfType<ScenarioClock>();
 
-            _restLocalRotation = transform.localRotation;
             BindButtons();
+            ApplyControllerLocalAnchor();
         }
 
         void OnEnable()
@@ -72,33 +69,8 @@ namespace RRX.UI
 
         void LateUpdate()
         {
-            if (_origin == null || _origin.Camera == null)
-                return;
-
-            var cam = _origin.Camera.transform;
-            var toCam = (cam.position - transform.position).normalized;
-            float angle = Vector3.Angle(transform.forward, toCam);
-            if (angle > 70f)
-            {
-                transform.localRotation = Quaternion.Slerp(
-                    transform.localRotation,
-                    _restLocalRotation,
-                    1f - Mathf.Exp(-_faceLerp * Time.deltaTime));
-                return;
-            }
-
-            var targetWorld = Quaternion.LookRotation(toCam, Vector3.up);
-            var local = Quaternion.Inverse(transform.parent.rotation) * targetWorld;
-            var e = local.eulerAngles;
-            float yaw = Mathf.DeltaAngle(0f, e.y);
-            float pitch = Mathf.DeltaAngle(0f, e.x);
-            yaw = Mathf.Clamp(yaw, -45f, 45f);
-            pitch = Mathf.Clamp(pitch, -35f, 35f);
-            var clamped = Quaternion.Euler(pitch, yaw, 0f);
-            transform.localRotation = Quaternion.Slerp(
-                transform.localRotation,
-                clamped,
-                1f - Mathf.Exp(-_faceLerp * Time.deltaTime));
+            // Keep hints fixed above the controller axis with a constant perpendicular orientation.
+            ApplyControllerLocalAnchor();
         }
 
         public void FlashFailure()
@@ -201,6 +173,13 @@ namespace RRX.UI
                 _resetButton.onClick.RemoveListener(OnResetClicked);
                 _resetButton.onClick.AddListener(OnResetClicked);
             }
+        }
+
+        void ApplyControllerLocalAnchor()
+        {
+            transform.localPosition = _controllerLocalPosition;
+            transform.localRotation = Quaternion.Euler(_controllerLocalEuler);
+            transform.localScale = _controllerLocalScale;
         }
     }
 }

@@ -16,7 +16,15 @@ namespace RRX.Interactions
         {
             if (!string.IsNullOrEmpty(_requireTag) && !other.CompareTag(_requireTag))
                 return;
-            _runner?.SubmitAction(_action);
+            if (_runner == null)
+                return;
+
+            var submission = new ScenarioActionSubmission(
+                _action,
+                ScenarioHotspotId.None,
+                null,
+                Time.realtimeSinceStartup);
+            _runner.TrySubmit(submission, out _);
         }
     }
 }

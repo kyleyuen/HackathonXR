@@ -12,6 +12,17 @@ namespace RRX.Interactions
     {
         [SerializeField] ScenarioRunner _runner;
 
+        void Submit(ScenarioAction action)
+        {
+            if (_runner == null) return;
+            var submission = new ScenarioActionSubmission(
+                action,
+                ScenarioHotspotId.None,
+                null,
+                Time.realtimeSinceStartup);
+            _runner.TrySubmit(submission, out _);
+        }
+
         void Update()
         {
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
@@ -20,20 +31,20 @@ namespace RRX.Interactions
             var kb = Keyboard.current;
             if (kb == null) return;
             if (kb.digit1Key.wasPressedThisFrame)
-                _runner.SubmitAction(ScenarioAction.CheckResponsiveness);
+                Submit(ScenarioAction.CheckResponsiveness);
             if (kb.digit2Key.wasPressedThisFrame)
-                _runner.SubmitAction(ScenarioAction.Call911);
+                Submit(ScenarioAction.Call911);
             if (kb.digit3Key.wasPressedThisFrame)
-                _runner.SubmitAction(ScenarioAction.AdministerNarcan);
+                Submit(ScenarioAction.AdministerNarcan);
             if (kb.rKey.wasPressedThisFrame)
                 _runner.RewindPreviousCheckpoint();
 #else
             if (Input.GetKeyDown(KeyCode.Alpha1))
-                _runner.SubmitAction(ScenarioAction.CheckResponsiveness);
+                Submit(ScenarioAction.CheckResponsiveness);
             if (Input.GetKeyDown(KeyCode.Alpha2))
-                _runner.SubmitAction(ScenarioAction.Call911);
+                Submit(ScenarioAction.Call911);
             if (Input.GetKeyDown(KeyCode.Alpha3))
-                _runner.SubmitAction(ScenarioAction.AdministerNarcan);
+                Submit(ScenarioAction.AdministerNarcan);
             if (Input.GetKeyDown(KeyCode.R))
                 _runner.RewindPreviousCheckpoint();
 #endif

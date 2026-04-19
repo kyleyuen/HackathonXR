@@ -36,47 +36,47 @@ namespace RRX.Editor
             var root = new GameObject(RootName);
             Undo.RegisterCreatedObjectUndo(root, "RRX Wrist Panel");
             Undo.SetTransformParent(root.transform, leftController, "RRX Wrist Panel");
-            root.transform.localPosition = new Vector3(0.04f, 0.03f, 0f);
-            root.transform.localRotation = Quaternion.Euler(15f, 180f, 0f);
-            root.transform.localScale = Vector3.one * 0.001f;
+            root.transform.localPosition = new Vector3(0f, 0.055f, 0.015f);
+            root.transform.localRotation = Quaternion.Euler(0f, 0f, 0f);
+            root.transform.localScale = Vector3.one * 0.0007f;
 
             var canvas = Undo.AddComponent<Canvas>(root);
             canvas.renderMode = RenderMode.WorldSpace;
             var scaler = Undo.AddComponent<CanvasScaler>(root);
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(760f, 460f);
+            scaler.referenceResolution = new Vector2(560f, 320f);
             Undo.AddComponent<TrackedDeviceGraphicRaycaster>(root);
 
             var rect = root.GetComponent<RectTransform>();
-            rect.sizeDelta = new Vector2(760f, 460f);
+            rect.sizeDelta = new Vector2(560f, 320f);
 
             var panel = CreateImage("Panel", root.transform, new Color(0.1f, 0.12f, 0.15f, 0.22f));
             Stretch(panel.rectTransform);
 
             var layout = panel.gameObject.AddComponent<VerticalLayoutGroup>();
-            layout.padding = new RectOffset(24, 24, 20, 18);
-            layout.spacing = 12f;
+            layout.padding = new RectOffset(18, 18, 14, 12);
+            layout.spacing = 8f;
             layout.childControlHeight = true;
             layout.childControlWidth = true;
             layout.childForceExpandHeight = false;
             layout.childForceExpandWidth = true;
 
-            var title = CreateText("Title", panel.transform, 42f, FontStyles.Bold);
+            var title = CreateText("Title", panel.transform, 28f, FontStyles.Bold);
             title.text = "Scenario";
             title.alignment = TextAlignmentOptions.Left;
 
-            var hint = CreateText("Hint", panel.transform, 28f, FontStyles.Normal);
+            var hint = CreateText("Hint", panel.transform, 20f, FontStyles.Normal);
             hint.text = "Hint";
             hint.enableWordWrapping = true;
 
-            var meta = CreateText("Meta", panel.transform, 24f, FontStyles.Italic);
+            var meta = CreateText("Meta", panel.transform, 16f, FontStyles.Italic);
             meta.text = "Mistakes: 0/3";
 
             var row = new GameObject("Buttons", typeof(RectTransform), typeof(HorizontalLayoutGroup));
             Undo.RegisterCreatedObjectUndo(row, "RRX Wrist Panel Buttons");
             row.transform.SetParent(panel.transform, false);
             var rowLayout = row.GetComponent<HorizontalLayoutGroup>();
-            rowLayout.spacing = 12f;
+            rowLayout.spacing = 8f;
             rowLayout.childForceExpandWidth = true;
             rowLayout.childForceExpandHeight = false;
 
@@ -130,7 +130,7 @@ namespace RRX.Editor
             buttonGo.transform.SetParent(parent, false);
             buttonGo.GetComponent<Image>().color = new Color(0.23f, 0.29f, 0.35f, 0.9f);
             var le = buttonGo.GetComponent<LayoutElement>();
-            le.minHeight = 56f;
+            le.minHeight = 42f;
 
             var textGo = new GameObject("Text", typeof(RectTransform), typeof(TextMeshProUGUI));
             Undo.RegisterCreatedObjectUndo(textGo, $"{label} Text");
@@ -139,7 +139,7 @@ namespace RRX.Editor
             var txt = textGo.GetComponent<TextMeshProUGUI>();
             txt.text = label;
             txt.alignment = TextAlignmentOptions.Center;
-            txt.fontSize = 30f;
+            txt.fontSize = 22f;
             txt.color = Color.white;
 
             return buttonGo.GetComponent<Button>();

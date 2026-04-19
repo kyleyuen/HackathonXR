@@ -195,7 +195,7 @@ namespace RRX.Editor
 
             var col = go.GetComponent<BoxCollider>();
             if (col != null)
-                col.isTrigger = true;
+                col.isTrigger = false;
 
             var interactable = Undo.AddComponent<XRSimpleInteractable>(go);
             interactable.colliders.Clear();
@@ -223,7 +223,11 @@ namespace RRX.Editor
 
             var col = phone.GetComponent<BoxCollider>();
             if (col != null)
-                col.isTrigger = true;
+            {
+                col.isTrigger = false;
+                col.size = new Vector3(1.8f, 4.5f, 1.8f); // Easier ray selection without changing visible mesh.
+                col.center = new Vector3(0f, 0.9f, 0f);
+            }
 
             var interactable = Undo.AddComponent<XRSimpleInteractable>(phone);
             interactable.colliders.Clear();
