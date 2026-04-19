@@ -101,6 +101,9 @@ namespace RRX.Editor
             EnsureControllerVisuals();
             RRXMrCameraMenu.TryApplyMrCameraHints(showDialogIfNoOrigin: false);
             RRXPatientBuilder.SpawnOrRebuildPatient();
+            RRXInteractionsBuilder.BindTriggerHotspots();
+            RRXWristPanelBuilder.SpawnOrRebuild();
+            RRXScenarioFeedbackBuilder.SpawnOrRebuild();
         }
 
         static void EnsureXrBootstrapOnRig()

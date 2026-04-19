@@ -1,5 +1,6 @@
 using RRX.Core;
 using RRX.Interactions;
+using RRX.Runtime;
 using Unity.XR.CoreUtils;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -11,8 +12,8 @@ namespace RRX.Editor
 {
     /// <summary>
     /// Spawns a blockout patient lying supine on the MR floor in front of the user so the player can kneel
-    /// / crouch next to them and "operate" — check responsiveness on the shoulder, pick up the phone to call
-    /// 911, and press the nasal-narcan hotspot. Wires up <see cref="PatientPresenter"/> to the scene's
+    /// / crouch next to them and "operate" — check responsiveness on the shoulder, call 911 on the phone,
+    /// and press the nasal-narcan hotspot. Wires up <see cref="PatientPresenter"/> to the scene's
     /// <see cref="ScenarioRunner"/> automatically.
     /// </summary>
     static class RRXPatientBuilder
@@ -68,6 +69,8 @@ namespace RRX.Editor
 
             var presenter = root.AddComponent<PatientPresenter>();
             Undo.RegisterCreatedObjectUndo(presenter, "RRX Patient Presenter");
+            var procedural = root.AddComponent<RRXPatientProceduralVisuals>();
+            Undo.RegisterCreatedObjectUndo(procedural, "RRX Patient Procedural Visuals");
 
             var runner = Object.FindObjectOfType<ScenarioRunner>();
             WirePresenterToRunner(runner, presenter);
@@ -76,14 +79,14 @@ namespace RRX.Editor
                 localCenter: new Vector3(-0.19f, 0.26f, TorsoLocalZ - 0.22f),
                 localSize: new Vector3(0.20f, 0.20f, 0.20f),
                 material: hotspotMat,
-                action: ScenarioAction.CheckResponsiveness,
+                hotspotId: ScenarioHotspotId.Shoulder,
                 runner: runner);
 
             BuildHotspot(root.transform, "Hotspot_NasalNarcan",
                 localCenter: new Vector3(0f, 0.30f, HeadLocalZ - 0.02f),
                 localSize: new Vector3(0.18f, 0.14f, 0.14f),
                 material: hotspotMat,
-                action: ScenarioAction.AdministerNarcan,
+                hotspotId: ScenarioHotspotId.Nose,
                 runner: runner);
 
             BuildPhone(root.transform, phoneMat, runner);
@@ -180,7 +183,7 @@ namespace RRX.Editor
         }
 
         static void BuildHotspot(Transform parent, string name, Vector3 localCenter, Vector3 localSize,
-            Material material, ScenarioAction action, ScenarioRunner runner)
+            Material material, ScenarioHotspotId hotspotId, ScenarioRunner runner)
         {
             var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
             go.name = name;
@@ -199,9 +202,12 @@ namespace RRX.Editor
             if (col != null)
                 interactable.colliders.Add(col);
 
-            var bind = Undo.AddComponent<ScenarioXRSelectAction>(go);
-            bind.SetAction(action);
-            bind.SetRunner(runner);
+            var tag = Undo.AddComponent<RRXScenarioHotspotTag>(go);
+            SetHotspotId(tag, hotspotId);
+            var trigger = Undo.AddComponent<RRXTriggerActivatedHotspot>(go);
+            trigger.SetRunner(runner);
+            trigger.SetHotspotTag(tag);
+            Undo.AddComponent<RRXHotspotHighlight>(go);
         }
 
         static void BuildPhone(Transform root, Material phoneMat, ScenarioRunner runner)
@@ -215,19 +221,37 @@ namespace RRX.Editor
             phone.transform.localScale = new Vector3(0.08f, 0.018f, 0.16f);
             ApplyMat(phone, phoneMat);
 
-            var rb = Undo.AddComponent<Rigidbody>(phone);
-            rb.isKinematic = true;
-            rb.useGravity = false;
+            var col = phone.GetComponent<BoxCollider>();
+            if (col != null)
+                col.isTrigger = true;
 
-            var grab = Undo.AddComponent<XRGrabInteractable>(phone);
-            grab.movementType = XRBaseInteractable.MovementType.Instantaneous;
-            grab.trackPosition = true;
-            grab.trackRotation = true;
-            grab.throwOnDetach = false;
+            var interactable = Undo.AddComponent<XRSimpleInteractable>(phone);
+            interactable.colliders.Clear();
+            if (col != null)
+                interactable.colliders.Add(col);
 
-            var bind = Undo.AddComponent<ScenarioXRSelectAction>(phone);
-            bind.SetAction(ScenarioAction.Call911);
-            bind.SetRunner(runner);
+            var tag = Undo.AddComponent<RRXScenarioHotspotTag>(phone);
+            SetHotspotId(tag, ScenarioHotspotId.Phone);
+            var trigger = Undo.AddComponent<RRXTriggerActivatedHotspot>(phone);
+            trigger.SetRunner(runner);
+            trigger.SetHotspotTag(tag);
+            Undo.AddComponent<RRXHotspotHighlight>(phone);
+            BuildPhoneLabel(phone.transform);
+        }
+
+        static void BuildPhoneLabel(Transform parent)
+        {
+            var label = new GameObject("RRX_PhoneLabel");
+            Undo.RegisterCreatedObjectUndo(label, label.name);
+            label.transform.SetParent(parent, false);
+            label.transform.localPosition = new Vector3(0f, 0.08f, 0f);
+            label.transform.localRotation = Quaternion.identity;
+            var mesh = Undo.AddComponent<TextMesh>(label);
+            mesh.text = "Call 911";
+            mesh.anchor = TextAnchor.MiddleCenter;
+            mesh.characterSize = 0.05f;
+            mesh.fontSize = 36;
+            mesh.color = Color.white;
         }
 
         static void WirePresenterToRunner(ScenarioRunner runner, PatientPresenter presenter)
@@ -296,6 +320,18 @@ namespace RRX.Editor
                 if (!AssetDatabase.IsValidFolder(parent))
                     AssetDatabase.CreateFolder("Assets", "RRX");
                 AssetDatabase.CreateFolder(parent, "Materials");
+            }
+        }
+
+        static void SetHotspotId(RRXScenarioHotspotTag tag, ScenarioHotspotId id)
+        {
+            var so = new SerializedObject(tag);
+            var p = so.FindProperty("_hotspotId");
+            if (p != null)
+            {
+                p.enumValueIndex = (int)id;
+                so.ApplyModifiedPropertiesWithoutUndo();
+                EditorUtility.SetDirty(tag);
             }
         }
     }

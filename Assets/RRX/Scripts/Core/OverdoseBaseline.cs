@@ -53,15 +53,23 @@ namespace RRX.Core
             }
         }
 
-        /// <summary>Minor deterioration when learner attempts wrong action.</summary>
-        public static PatientVisualState Worsen(in PatientVisualState current)
+        /// <summary>
+        /// Compounding deterioration by failure count, applied against the current state's baseline snapshot.
+        /// </summary>
+        public static PatientVisualState Worsen(in PatientVisualState baseline, int failureCount)
         {
+            float fail = UnityEngine.Mathf.Max(1, failureCount);
+            float breathScale = UnityEngine.Mathf.Pow(0.85f, fail);
+            float consciousnessScale = UnityEngine.Mathf.Pow(0.8f, fail);
+            float cyanosisLift = 1f - UnityEngine.Mathf.Pow(0.93f, fail);
+            float slumpLift = 1f - UnityEngine.Mathf.Pow(0.94f, fail);
+
             return new PatientVisualState
             {
-                BreathRate = current.BreathRate * 0.85f,
-                Consciousness = current.Consciousness * 0.8f,
-                Cyanosis = UnityEngine.Mathf.Min(1f, current.Cyanosis + 0.07f),
-                HeadSlump = UnityEngine.Mathf.Min(1f, current.HeadSlump + 0.05f)
+                BreathRate = UnityEngine.Mathf.Clamp01(baseline.BreathRate * breathScale),
+                Consciousness = UnityEngine.Mathf.Clamp01(baseline.Consciousness * consciousnessScale),
+                Cyanosis = UnityEngine.Mathf.Clamp01(baseline.Cyanosis + cyanosisLift),
+                HeadSlump = UnityEngine.Mathf.Clamp01(baseline.HeadSlump + slumpLift)
             };
         }
     }
