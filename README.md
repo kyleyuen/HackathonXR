@@ -1,5 +1,7 @@
 # Rewind Rescue XR (RRX)
 
+![Rewind Rescue XR](https://i.imgur.com/8DSqOpr.png)
+
 Rewind Rescue XR is an immersive, rewindable mixed-reality emergency-response trainer built for rapid iteration and real-world training impact.
 
 At a systems level, the experience starts by configuring an XR rig, scenario graph, world-space interface, and a physically grounded plaza environment. The near play area is represented as a low-opacity, comfort-aware interaction zone so users can stay aware of real-world boundaries and avoid collisions, while farther distances render a busy public background with moving pedestrians and layered ambience. That contrast is intentional: immediate safety in the user radius, realistic external pressure in the periphery.
