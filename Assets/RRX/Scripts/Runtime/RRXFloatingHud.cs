@@ -1,4 +1,8 @@
+using System;
+using System.Collections;
+using System.Collections.Generic;
 using TMPro;
+using RRX.Environment;
 using RRX.Runtime;
 using UnityEngine;
 using UnityEngine.UI;
@@ -9,9 +13,9 @@ using UnityEngine.XR.Interaction.Toolkit.UI;
 namespace RRX.UI
 {
     /// <summary>
-    /// World-space HUD parented to the XR headset camera: start menu (Start / Settings / Exit / Help),
-    /// then two separate side panels (menus | tools). Back returns to the start menu.
-    /// In split mode, both triggers (L2/R2) chord toggles panel visibility when not aiming at either panel.
+    /// World-space HUD parented to the XR headset camera: main menu, split edge panels, settings (with live
+    /// crowd / HUD tweaks), help, scenario/training stubs, and tool slot messages. L2+R2 chord toggles split
+    /// visibility when no other overlay is open.
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class RRXFloatingHud : MonoBehaviour
@@ -21,14 +25,13 @@ namespace RRX.UI
         const int CanvasRefPixels = 900;
         const int CanvasRefPixelsY = 560;
         const float TriggerThreshold = 0.82f;
-        /// <summary>Docked strip width in canvas pixels (reference resolution); keep modest so panels sit at FOV edges.</summary>
         const float SplitPanelWidthPx = 248f;
         const float SplitEdgeInsetPx = 4f;
         const float SplitVerticalInsetPx = 24f;
         const float SplitPanelOpenYawDegrees = 14f;
         const float SplitPanelOpenPitchDegrees = 5f;
 
-        [SerializeField] float _forwardMeters = 1.12f;
+        [SerializeField] float _forwardMeters = 2.24f;
         [SerializeField] float _downMeters = 0.05f;
 
         bool _hudBuilt;
@@ -43,8 +46,18 @@ namespace RRX.UI
         RectTransform _leftPanelRect;
         RectTransform _rightPanelRect;
 
+        GameObject _settingsOverlay;
+        GameObject _helpOverlay;
+        GameObject _scenarioOverlay;
+        GameObject _trainingOverlay;
+        GameObject _toastOverlay;
+        TextMeshProUGUI _toastText;
+
         bool _splitMenuVisible = true;
         bool _bothTriggersHeldLast;
+        bool _settingsReturnToSplit;
+        RRXMallCrowd _mallCrowd;
+        readonly List<Action> _settingsRefreshers = new List<Action>();
 
         void Awake()
         {
@@ -53,6 +66,7 @@ namespace RRX.UI
 
             EnsureEventSystem();
             BuildHud();
+            _mallCrowd = FindObjectOfType<RRXMallCrowd>();
             _hudBuilt = true;
         }
 
@@ -72,6 +86,9 @@ namespace RRX.UI
             if (_splitPanel == null || !_splitPanel.activeInHierarchy || _leftPanelRect == null || _rightPanelRect == null)
                 return;
 
+            if (AnyModalOverlayOpen())
+                return;
+
             var lv = ReadTrigger(XRNode.LeftHand);
             var rv = ReadTrigger(XRNode.RightHand);
             var bothNow = lv >= TriggerThreshold && rv >= TriggerThreshold;
@@ -84,6 +101,15 @@ namespace RRX.UI
             }
 
             _bothTriggersHeldLast = bothNow;
+        }
+
+        bool AnyModalOverlayOpen()
+        {
+            return _settingsOverlay != null && _settingsOverlay.activeSelf
+                || _helpOverlay != null && _helpOverlay.activeSelf
+                || _scenarioOverlay != null && _scenarioOverlay.activeSelf
+                || _trainingOverlay != null && _trainingOverlay.activeSelf
+                || _toastOverlay != null && _toastOverlay.activeSelf;
         }
 
         static float ReadTrigger(XRNode node)
@@ -178,18 +204,22 @@ namespace RRX.UI
                 return;
 
             if (transform.parent == cam.transform)
+            {
+                ApplyHudLocalPosition();
                 return;
+            }
 
             transform.SetParent(cam.transform, false);
-            transform.localPosition = new Vector3(0f, -_downMeters, _forwardMeters);
+            ApplyHudLocalPosition();
             transform.localRotation = Quaternion.identity;
             transform.localScale = Vector3.one;
         }
 
-        /// <summary>
-        /// XR world UI requires <see cref="XRUIInputModule"/> — not plain <see cref="UnityEngine.InputSystem.UI.InputSystemUIInputModule"/>.
-        /// Otherwise controller rays (<see cref="UnityEngine.XR.Interaction.Toolkit.Interactors.XRRayInteractor"/>) never click UI.
-        /// </summary>
+        void ApplyHudLocalPosition()
+        {
+            transform.localPosition = new Vector3(0f, -_downMeters, _forwardMeters);
+        }
+
         static void EnsureEventSystem()
         {
             RRXRigInteractionSetup.ConfigureSceneEventSystems();
@@ -244,31 +274,36 @@ namespace RRX.UI
             _leftPanelRect = CreatePanelColumn(splitRt, "MenusPanel", true, dockLeft: true).GetComponent<RectTransform>();
             _rightPanelRect = CreatePanelColumn(splitRt, "ToolsPanel", false, dockLeft: false).GetComponent<RectTransform>();
 
-            // Outward “double window” skew (mirrored): inverted from the previous tilt/yaw so each sash opens the other way.
             _leftPanelRect.localRotation = Quaternion.Euler(-SplitPanelOpenPitchDegrees, -SplitPanelOpenYawDegrees, 0f);
             _rightPanelRect.localRotation = Quaternion.Euler(-SplitPanelOpenPitchDegrees, SplitPanelOpenYawDegrees, 0f);
+
+            BuildSettingsOverlay(rt);
+            BuildHelpOverlay(rt);
+            BuildScenarioOverlay(rt);
+            BuildTrainingOverlay(rt);
+            BuildToastOverlay(rt);
         }
 
         GameObject CreatePanelColumn(RectTransform parent, string name, bool menusColumn, bool dockLeft)
         {
             var go = new GameObject(name, typeof(RectTransform), typeof(LayoutElement), typeof(Image));
             go.transform.SetParent(parent, false);
-            var rt = go.GetComponent<RectTransform>();
+            var rtt = go.GetComponent<RectTransform>();
             if (dockLeft)
             {
-                rt.anchorMin = new Vector2(0f, 0f);
-                rt.anchorMax = new Vector2(0f, 1f);
-                rt.pivot = new Vector2(0f, 0.5f);
-                rt.anchoredPosition = new Vector2(SplitEdgeInsetPx, 0f);
-                rt.sizeDelta = new Vector2(SplitPanelWidthPx, -SplitVerticalInsetPx * 2f);
+                rtt.anchorMin = new Vector2(0f, 0f);
+                rtt.anchorMax = new Vector2(0f, 1f);
+                rtt.pivot = new Vector2(0f, 0.5f);
+                rtt.anchoredPosition = new Vector2(SplitEdgeInsetPx, 0f);
+                rtt.sizeDelta = new Vector2(SplitPanelWidthPx, -SplitVerticalInsetPx * 2f);
             }
             else
             {
-                rt.anchorMin = new Vector2(1f, 0f);
-                rt.anchorMax = new Vector2(1f, 1f);
-                rt.pivot = new Vector2(1f, 0.5f);
-                rt.anchoredPosition = new Vector2(-SplitEdgeInsetPx, 0f);
-                rt.sizeDelta = new Vector2(SplitPanelWidthPx, -SplitVerticalInsetPx * 2f);
+                rtt.anchorMin = new Vector2(1f, 0f);
+                rtt.anchorMax = new Vector2(1f, 1f);
+                rtt.pivot = new Vector2(1f, 0.5f);
+                rtt.anchoredPosition = new Vector2(-SplitEdgeInsetPx, 0f);
+                rtt.sizeDelta = new Vector2(SplitPanelWidthPx, -SplitVerticalInsetPx * 2f);
             }
 
             var le = go.GetComponent<LayoutElement>();
@@ -289,18 +324,18 @@ namespace RRX.UI
             AddHeader(go.transform, menusColumn ? "Menus" : "Tools & Inventory");
             if (menusColumn)
             {
-                AddPlaceholderButton(go.transform, "Scenario", null);
-                AddPlaceholderButton(go.transform, "Training", null);
-                AddPlaceholderButton(go.transform, "Journal", null);
+                AddPlaceholderButton(go.transform, "Scenario", OnScenarioClicked);
+                AddPlaceholderButton(go.transform, "Training", OnTrainingClicked);
+                AddPlaceholderButton(go.transform, "Settings", OnSplitSettingsClicked);
                 AddPlaceholderButton(go.transform, "Back to menu", OnBackToMenuClicked);
             }
             else
             {
-                AddPlaceholderButton(go.transform, "Tool A", null);
-                AddPlaceholderButton(go.transform, "Tool B", null);
+                AddPlaceholderButton(go.transform, "Tool A", OnToolAClicked);
+                AddPlaceholderButton(go.transform, "Tool B", OnToolBClicked);
                 AddSectionLabel(go.transform, "Inventory");
-                AddPlaceholderButton(go.transform, "Slot 1 (empty)", null);
-                AddPlaceholderButton(go.transform, "Slot 2 (empty)", null);
+                AddPlaceholderButton(go.transform, "Slot 1 (empty)", OnSlot1Clicked);
+                AddPlaceholderButton(go.transform, "Slot 2 (empty)", OnSlot2Clicked);
                 AddPlaceholderButton(go.transform, "Back to menu", OnBackToMenuClicked);
             }
 
@@ -311,9 +346,350 @@ namespace RRX.UI
         {
             AddHeader(parent, "RRX");
             AddPlaceholderButton(parent, "Start", OnStartClicked);
-            AddPlaceholderButton(parent, "Settings", OnSettingsClicked);
+            AddPlaceholderButton(parent, "Settings", OnMainMenuSettingsClicked);
             AddPlaceholderButton(parent, "Help", OnHelpClicked);
             AddPlaceholderButton(parent, "Exit", OnExitClicked);
+        }
+
+        void BuildSettingsOverlay(RectTransform root)
+        {
+            _settingsRefreshers.Clear();
+            _settingsOverlay = CreateDimOverlay(root, "SettingsOverlay");
+            var card = CreateCenterCard(_settingsOverlay.transform, 560f, 500f);
+            var v = card.GetComponent<VerticalLayoutGroup>();
+            v.spacing = 10f;
+            v.padding = new RectOffset(20, 20, 16, 16);
+            v.childAlignment = TextAnchor.UpperCenter;
+            v.childControlWidth = true;
+            v.childControlHeight = true;
+            v.childForceExpandWidth = true;
+
+            AddHeader(card.transform, "Settings");
+            AddSettingsDescription(card.transform);
+
+            AddNumericStepperRow(card.transform, "HUD distance (m)", 0.35f, 4f, 0.05f,
+                () => _forwardMeters,
+                x =>
+                {
+                    _forwardMeters = x;
+                    ApplyHudLocalPosition();
+                });
+
+            AddNumericStepperRow(card.transform, "Crowd clearance (m)", 0.05f, 3f, 0.05f,
+                () => _mallCrowd != null ? _mallCrowd.PlayerExclusionRadiusMeters : 0.5f,
+                x =>
+                {
+                    if (_mallCrowd != null)
+                        _mallCrowd.PlayerExclusionRadiusMeters = x;
+                },
+                () => _mallCrowd != null);
+
+            AddNumericStepperRow(card.transform, "Crowd show LOD (m)", 2f, 40f, 0.5f,
+                () => _mallCrowd != null ? _mallCrowd.CrowdShowDistanceMeters : 16f,
+                x =>
+                {
+                    if (_mallCrowd != null)
+                        _mallCrowd.CrowdShowDistanceMeters = x;
+                },
+                () => _mallCrowd != null);
+
+            AddNumericStepperRow(card.transform, "Crowd hide LOD (m)", 2.5f, 48f, 0.5f,
+                () => _mallCrowd != null ? _mallCrowd.CrowdHideDistanceMeters : 19f,
+                x =>
+                {
+                    if (_mallCrowd != null)
+                        _mallCrowd.CrowdHideDistanceMeters = x;
+                },
+                () => _mallCrowd != null);
+
+            AddToggleRow(card.transform, "Mall crowd", () => _mallCrowd != null && _mallCrowd.gameObject.activeSelf,
+                active =>
+                {
+                    if (_mallCrowd != null)
+                        _mallCrowd.gameObject.SetActive(active);
+                },
+                () => _mallCrowd != null);
+
+            AddPlaceholderButton(card.transform, "Close", HideSettingsOverlay);
+        }
+
+        static void AddSettingsDescription(Transform parent)
+        {
+            var go = new GameObject("SettingsHint", typeof(RectTransform), typeof(TextMeshProUGUI), typeof(LayoutElement));
+            go.transform.SetParent(parent, false);
+            var le = go.GetComponent<LayoutElement>();
+            le.minHeight = 44f;
+            le.preferredHeight = 44f;
+            var tmp = go.GetComponent<TextMeshProUGUI>();
+            tmp.text = "Adjust HUD placement, mall crowd visibility, and LOD / personal space.";
+            tmp.fontSize = 18;
+            tmp.alignment = TextAlignmentOptions.Center;
+            tmp.color = new Color(0.85f, 0.88f, 0.92f, 0.88f);
+        }
+
+        void BuildHelpOverlay(RectTransform root)
+        {
+            _helpOverlay = CreateDimOverlay(root, "HelpOverlay");
+            var card = CreateCenterCard(_helpOverlay.transform, 560f, 440f);
+            var v = card.GetComponent<VerticalLayoutGroup>();
+            v.spacing = 12f;
+            v.padding = new RectOffset(22, 22, 18, 18);
+            v.childAlignment = TextAnchor.UpperCenter;
+            v.childControlWidth = true;
+            v.childControlHeight = true;
+            v.childForceExpandWidth = true;
+
+            AddHeader(card.transform, "Help");
+            var body = new GameObject("HelpBody", typeof(RectTransform), typeof(TextMeshProUGUI), typeof(LayoutElement));
+            body.transform.SetParent(card.transform, false);
+            var le = body.GetComponent<LayoutElement>();
+            le.flexibleHeight = 1f;
+            le.minHeight = 220f;
+            var tmp = body.GetComponent<TextMeshProUGUI>();
+            tmp.text =
+                "• <b>Start</b> — opens menus + tools on the sides of your view.\n" +
+                "• <b>L2 + R2</b> (both triggers) — hide/show split panels when not aiming at them.\n" +
+                "• <b>Settings</b> — here or from the main menu: HUD distance, crowd on/off, clearance, LOD.\n" +
+                "• <b>Scenario / Training</b> — placeholders for authored sessions and modules.\n" +
+                "• <b>Exit</b> — quit play mode / build.";
+            tmp.fontSize = 20;
+            tmp.alignment = TextAlignmentOptions.TopLeft;
+            tmp.color = new Color(0.92f, 0.94f, 0.97f, 0.95f);
+            tmp.enableWordWrapping = true;
+
+            AddPlaceholderButton(card.transform, "Close", HideHelpOverlay);
+        }
+
+        void BuildScenarioOverlay(RectTransform root)
+        {
+            _scenarioOverlay = CreateDimOverlay(root, "ScenarioOverlay");
+            var card = CreateCenterCard(_scenarioOverlay.transform, 520f, 320f);
+            AddInfoCardContent(card.transform, "Scenario",
+                "Instructor-authored scenarios will appear here (session list, objectives, timers). Hook your scenario loader to this entry point.",
+                HideScenarioOverlay);
+        }
+
+        void BuildTrainingOverlay(RectTransform root)
+        {
+            _trainingOverlay = CreateDimOverlay(root, "TrainingOverlay");
+            var card = CreateCenterCard(_trainingOverlay.transform, 520f, 320f);
+            AddInfoCardContent(card.transform, "Training",
+                "Training modes (skills drills, guided tasks) will launch from here. Wire your training flow to this button.",
+                HideTrainingOverlay);
+        }
+
+        void BuildToastOverlay(RectTransform root)
+        {
+            _toastOverlay = CreateDimOverlay(root, "ToastOverlay", 0.35f);
+            var card = CreateCenterCard(_toastOverlay.transform, 440f, 160f);
+            var v = card.GetComponent<VerticalLayoutGroup>();
+            v.spacing = 14f;
+            v.padding = new RectOffset(20, 20, 18, 18);
+            v.childAlignment = TextAnchor.MiddleCenter;
+            v.childControlWidth = true;
+
+            var toastGo = new GameObject("ToastText", typeof(RectTransform), typeof(TextMeshProUGUI), typeof(LayoutElement));
+            toastGo.transform.SetParent(card.transform, false);
+            toastGo.GetComponent<LayoutElement>().minHeight = 72f;
+            _toastText = toastGo.GetComponent<TextMeshProUGUI>();
+            _toastText.fontSize = 22;
+            _toastText.alignment = TextAlignmentOptions.Center;
+            _toastText.color = Color.white;
+            _toastText.enableWordWrapping = true;
+
+            AddPlaceholderButton(card.transform, "OK", HideToast);
+            _toastOverlay.SetActive(false);
+        }
+
+        static void AddInfoCardContent(Transform cardRoot, string title, string body, UnityEngine.Events.UnityAction onClose)
+        {
+            var v = cardRoot.GetComponent<VerticalLayoutGroup>();
+            if (v == null)
+                v = cardRoot.gameObject.AddComponent<VerticalLayoutGroup>();
+            v.spacing = 12f;
+            v.padding = new RectOffset(20, 20, 16, 16);
+            v.childAlignment = TextAnchor.UpperCenter;
+            v.childControlWidth = true;
+            v.childForceExpandWidth = true;
+
+            AddHeader(cardRoot, title);
+            var bodyGo = new GameObject("Body", typeof(RectTransform), typeof(TextMeshProUGUI), typeof(LayoutElement));
+            bodyGo.transform.SetParent(cardRoot, false);
+            var le = bodyGo.GetComponent<LayoutElement>();
+            le.minHeight = 120f;
+            le.flexibleHeight = 1f;
+            var tmp = bodyGo.GetComponent<TextMeshProUGUI>();
+            tmp.text = body;
+            tmp.fontSize = 20;
+            tmp.alignment = TextAlignmentOptions.TopLeft;
+            tmp.color = new Color(0.9f, 0.92f, 0.95f, 0.95f);
+            tmp.enableWordWrapping = true;
+
+            AddPlaceholderButton(cardRoot, "Close", onClose);
+        }
+
+        static GameObject CreateDimOverlay(RectTransform root, string name, float alpha = 0.55f)
+        {
+            var go = new GameObject(name, typeof(RectTransform), typeof(Image));
+            go.transform.SetParent(root, false);
+            StretchFull(go.GetComponent<RectTransform>());
+            var img = go.GetComponent<Image>();
+            img.color = new Color(0f, 0f, 0f, alpha);
+            img.raycastTarget = true;
+            go.SetActive(false);
+            return go;
+        }
+
+        static GameObject CreateCenterCard(Transform overlayParent, float w, float h)
+        {
+            var card = new GameObject("Card", typeof(RectTransform), typeof(Image), typeof(VerticalLayoutGroup));
+            card.transform.SetParent(overlayParent, false);
+            var rt = card.GetComponent<RectTransform>();
+            rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f);
+            rt.sizeDelta = new Vector2(w, h);
+            rt.anchoredPosition = Vector2.zero;
+            card.GetComponent<Image>().color = new Color(0.08f, 0.09f, 0.11f, 0.94f);
+            return card;
+        }
+
+        void AddNumericStepperRow(Transform parent, string label, float min, float max, float step,
+            System.Func<float> read, System.Action<float> write, System.Func<bool> enabledCheck = null)
+        {
+            var row = new GameObject(label + "_Stepper", typeof(RectTransform), typeof(HorizontalLayoutGroup));
+            row.transform.SetParent(parent, false);
+            var h = row.GetComponent<HorizontalLayoutGroup>();
+            h.childAlignment = TextAnchor.MiddleCenter;
+            h.spacing = 8f;
+            h.childControlWidth = false;
+            h.childControlHeight = true;
+            h.childForceExpandWidth = false;
+            h.padding = new RectOffset(0, 0, 4, 4);
+            var rowLe = row.AddComponent<LayoutElement>();
+            rowLe.minHeight = 48f;
+            rowLe.preferredHeight = 48f;
+
+            var lab = new GameObject("Label", typeof(RectTransform), typeof(TextMeshProUGUI), typeof(LayoutElement));
+            lab.transform.SetParent(row.transform, false);
+            var labLe = lab.GetComponent<LayoutElement>();
+            labLe.preferredWidth = 220f;
+            labLe.minWidth = 200f;
+            var labTmp = lab.GetComponent<TextMeshProUGUI>();
+            labTmp.text = label;
+            labTmp.fontSize = 19;
+            labTmp.alignment = TextAlignmentOptions.Left;
+            labTmp.color = new Color(0.92f, 0.94f, 0.97f, 0.95f);
+
+            var minus = CreateSmallButton(row.transform, "-");
+            var valGo = new GameObject("Value", typeof(RectTransform), typeof(TextMeshProUGUI), typeof(LayoutElement));
+            valGo.transform.SetParent(row.transform, false);
+            var valLe = valGo.GetComponent<LayoutElement>();
+            valLe.preferredWidth = 72f;
+            valLe.minWidth = 72f;
+            var valTmp = valGo.GetComponent<TextMeshProUGUI>();
+            valTmp.fontSize = 20;
+            valTmp.alignment = TextAlignmentOptions.Center;
+            valTmp.color = Color.white;
+
+            var plus = CreateSmallButton(row.transform, "+");
+
+            void Refresh()
+            {
+                var on = enabledCheck == null || enabledCheck();
+                valTmp.text = on ? read().ToString("0.00") : "—";
+                minus.interactable = on;
+                plus.interactable = on;
+            }
+
+            minus.onClick.AddListener(() =>
+            {
+                if (enabledCheck != null && !enabledCheck())
+                    return;
+                write(Mathf.Clamp(read() - step, min, max));
+                Refresh();
+            });
+            plus.onClick.AddListener(() =>
+            {
+                if (enabledCheck != null && !enabledCheck())
+                    return;
+                write(Mathf.Clamp(read() + step, min, max));
+                Refresh();
+            });
+
+            Refresh();
+            _settingsRefreshers.Add(Refresh);
+        }
+
+        void AddToggleRow(Transform parent, string label, System.Func<bool> read, System.Action<bool> write, System.Func<bool> enabledCheck)
+        {
+            var row = new GameObject(label + "_Toggle", typeof(RectTransform), typeof(HorizontalLayoutGroup));
+            row.transform.SetParent(parent, false);
+            var h = row.GetComponent<HorizontalLayoutGroup>();
+            h.childAlignment = TextAnchor.MiddleLeft;
+            h.spacing = 12f;
+            row.AddComponent<LayoutElement>().minHeight = 48f;
+
+            var lab = new GameObject("Label", typeof(RectTransform), typeof(TextMeshProUGUI), typeof(LayoutElement));
+            lab.transform.SetParent(row.transform, false);
+            lab.GetComponent<LayoutElement>().preferredWidth = 220f;
+            var labTmp = lab.GetComponent<TextMeshProUGUI>();
+            labTmp.text = label;
+            labTmp.fontSize = 19;
+            labTmp.alignment = TextAlignmentOptions.Left;
+            labTmp.color = new Color(0.92f, 0.94f, 0.97f, 0.95f);
+
+            var btnGo = new GameObject("ToggleBtn", typeof(RectTransform), typeof(Image), typeof(Button), typeof(LayoutElement));
+            btnGo.transform.SetParent(row.transform, false);
+            btnGo.GetComponent<LayoutElement>().preferredWidth = 160f;
+            btnGo.GetComponent<LayoutElement>().minHeight = 44f;
+            var img = btnGo.GetComponent<Image>();
+            img.color = new Color(0.25f, 0.28f, 0.34f, ButtonBackdropAlpha);
+            var btn = btnGo.GetComponent<Button>();
+            var txtGo = new GameObject("Text", typeof(RectTransform), typeof(TextMeshProUGUI));
+            txtGo.transform.SetParent(btnGo.transform, false);
+            StretchFull(txtGo.GetComponent<RectTransform>());
+            var btnTmp = txtGo.GetComponent<TextMeshProUGUI>();
+            btnTmp.fontSize = 18;
+            btnTmp.alignment = TextAlignmentOptions.Center;
+            btnTmp.color = Color.white;
+
+            void Refresh()
+            {
+                var on = enabledCheck();
+                btn.interactable = on;
+                btnTmp.text = on ? (read() ? "On" : "Off") : "N/A";
+            }
+
+            btn.onClick.AddListener(() =>
+            {
+                if (!enabledCheck())
+                    return;
+                write(!read());
+                Refresh();
+            });
+
+            Refresh();
+            _settingsRefreshers.Add(Refresh);
+        }
+
+        static Button CreateSmallButton(Transform parent, string caption)
+        {
+            var go = new GameObject(caption + "_Btn", typeof(RectTransform), typeof(Image), typeof(Button), typeof(LayoutElement));
+            go.transform.SetParent(parent, false);
+            go.GetComponent<LayoutElement>().preferredWidth = 44f;
+            go.GetComponent<LayoutElement>().minWidth = 44f;
+            go.GetComponent<LayoutElement>().minHeight = 40f;
+            var img = go.GetComponent<Image>();
+            img.color = new Color(0.3f, 0.33f, 0.4f, ButtonBackdropAlpha);
+            var btn = go.GetComponent<Button>();
+            var tgo = new GameObject("T", typeof(RectTransform), typeof(TextMeshProUGUI));
+            tgo.transform.SetParent(go.transform, false);
+            StretchFull(tgo.GetComponent<RectTransform>());
+            var tmp = tgo.GetComponent<TextMeshProUGUI>();
+            tmp.text = caption;
+            tmp.fontSize = 22;
+            tmp.alignment = TextAlignmentOptions.Center;
+            tmp.color = Color.white;
+            return btn;
         }
 
         static void AddHeader(Transform parent, string text)
@@ -321,11 +697,11 @@ namespace RRX.UI
             var go = new GameObject("Header", typeof(RectTransform), typeof(TextMeshProUGUI), typeof(LayoutElement));
             go.transform.SetParent(parent, false);
             var le = go.GetComponent<LayoutElement>();
-            le.minHeight = 56f;
-            le.preferredHeight = 56f;
+            le.minHeight = 52f;
+            le.preferredHeight = 52f;
             var tmp = go.GetComponent<TextMeshProUGUI>();
             tmp.text = text;
-            tmp.fontSize = 36;
+            tmp.fontSize = 34;
             tmp.alignment = TextAlignmentOptions.Center;
             tmp.color = new Color(1f, 1f, 1f, 0.95f);
         }
@@ -428,14 +804,176 @@ namespace RRX.UI
             }
         }
 
-        void OnSettingsClicked()
+        void OnMainMenuSettingsClicked()
         {
-            Debug.Log("[RRX HUD] Settings (placeholder).");
+            ShowSettingsOverlay(returnToSplit: false);
+        }
+
+        void OnSplitSettingsClicked()
+        {
+            ShowSettingsOverlay(returnToSplit: true);
+        }
+
+        void ShowSettingsOverlay(bool returnToSplit)
+        {
+            _mallCrowd = FindObjectOfType<RRXMallCrowd>();
+            _settingsReturnToSplit = returnToSplit;
+            if (returnToSplit)
+            {
+                if (_splitPanel != null)
+                    _splitPanel.SetActive(false);
+            }
+            else
+            {
+                if (_mainMenuPanel != null)
+                    _mainMenuPanel.SetActive(false);
+            }
+
+            if (_backdropImage != null)
+            {
+                _backdropImage.enabled = true;
+                _backdropImage.raycastTarget = true;
+            }
+
+            _settingsOverlay.SetActive(true);
+            foreach (var r in _settingsRefreshers)
+                r?.Invoke();
+        }
+
+        void HideSettingsOverlay()
+        {
+            _settingsOverlay.SetActive(false);
+            if (_settingsReturnToSplit)
+            {
+                if (_splitPanel != null)
+                    _splitPanel.SetActive(true);
+                if (_backdropImage != null)
+                {
+                    _backdropImage.enabled = false;
+                    _backdropImage.raycastTarget = false;
+                }
+            }
+            else
+            {
+                if (_mainMenuPanel != null)
+                    _mainMenuPanel.SetActive(true);
+                if (_backdropImage != null)
+                {
+                    _backdropImage.enabled = true;
+                    _backdropImage.raycastTarget = true;
+                }
+            }
         }
 
         void OnHelpClicked()
         {
-            Debug.Log("[RRX HUD] Help (placeholder).");
+            if (_mainMenuPanel != null)
+                _mainMenuPanel.SetActive(false);
+            if (_backdropImage != null)
+            {
+                _backdropImage.enabled = true;
+                _backdropImage.raycastTarget = true;
+            }
+
+            _helpOverlay.SetActive(true);
+        }
+
+        void HideHelpOverlay()
+        {
+            _helpOverlay.SetActive(false);
+            if (_mainMenuPanel != null)
+                _mainMenuPanel.SetActive(true);
+        }
+
+        void OnScenarioClicked()
+        {
+            if (_splitPanel != null)
+                _splitPanel.SetActive(false);
+            if (_backdropImage != null)
+            {
+                _backdropImage.enabled = true;
+                _backdropImage.raycastTarget = true;
+            }
+
+            _scenarioOverlay.SetActive(true);
+        }
+
+        void HideScenarioOverlay()
+        {
+            _scenarioOverlay.SetActive(false);
+            if (_splitPanel != null)
+                _splitPanel.SetActive(true);
+            if (_backdropImage != null)
+            {
+                _backdropImage.enabled = false;
+                _backdropImage.raycastTarget = false;
+            }
+        }
+
+        void OnTrainingClicked()
+        {
+            if (_splitPanel != null)
+                _splitPanel.SetActive(false);
+            if (_backdropImage != null)
+            {
+                _backdropImage.enabled = true;
+                _backdropImage.raycastTarget = true;
+            }
+
+            _trainingOverlay.SetActive(true);
+        }
+
+        void HideTrainingOverlay()
+        {
+            _trainingOverlay.SetActive(false);
+            if (_splitPanel != null)
+                _splitPanel.SetActive(true);
+            if (_backdropImage != null)
+            {
+                _backdropImage.enabled = false;
+                _backdropImage.raycastTarget = false;
+            }
+        }
+
+        void OnToolAClicked()
+        {
+            ShowToast("Tool A — measurement / pointer utility (demo). Bind your interaction here.");
+        }
+
+        void OnToolBClicked()
+        {
+            ShowToast("Tool B — secondary utility slot (demo). Assign actions in code or prefab.");
+        }
+
+        void OnSlot1Clicked()
+        {
+            ShowToast("Inventory slot 1 is empty. Pick up items in a scenario to fill slots.");
+        }
+
+        void OnSlot2Clicked()
+        {
+            ShowToast("Inventory slot 2 is empty.");
+        }
+
+        void ShowToast(string message)
+        {
+            StopAllCoroutines();
+            _toastText.text = message;
+            _toastOverlay.SetActive(true);
+            StartCoroutine(HideToastAfterDelay(4.5f));
+        }
+
+        IEnumerator HideToastAfterDelay(float seconds)
+        {
+            yield return new WaitForSeconds(seconds);
+            HideToast();
+        }
+
+        void HideToast()
+        {
+            StopAllCoroutines();
+            if (_toastOverlay != null)
+                _toastOverlay.SetActive(false);
         }
 
         void OnExitClicked()

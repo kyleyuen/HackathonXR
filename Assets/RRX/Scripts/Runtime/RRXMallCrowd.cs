@@ -18,7 +18,7 @@ namespace RRX.Environment
         [SerializeField] float _targetReachEpsilon = 0.35f;
         [SerializeField] float _showDistanceMeters = 16f;
         [SerializeField] float _hideDistanceMeters = 19f;
-        [SerializeField] float _playerExclusionRadiusMeters = 1f;
+        [SerializeField] float _playerExclusionRadiusMeters = 0.5f;
 
         Transform _camera;
         Pedestrian[] _peds;
@@ -258,6 +258,29 @@ namespace RRX.Environment
         {
             var oxr = FindObjectOfType<XROrigin>();
             _camera = oxr != null && oxr.Camera != null ? oxr.Camera.transform : Camera.main != null ? Camera.main.transform : null;
+        }
+
+        public float PlayerExclusionRadiusMeters
+        {
+            get => _playerExclusionRadiusMeters;
+            set => _playerExclusionRadiusMeters = Mathf.Clamp(value, 0.05f, 10f);
+        }
+
+        public float CrowdShowDistanceMeters
+        {
+            get => _showDistanceMeters;
+            set
+            {
+                _showDistanceMeters = Mathf.Max(1f, value);
+                if (_hideDistanceMeters < _showDistanceMeters + 0.25f)
+                    _hideDistanceMeters = _showDistanceMeters + 0.25f;
+            }
+        }
+
+        public float CrowdHideDistanceMeters
+        {
+            get => _hideDistanceMeters;
+            set => _hideDistanceMeters = Mathf.Max(_showDistanceMeters + 0.25f, value);
         }
     }
 }
