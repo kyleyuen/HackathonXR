@@ -20,7 +20,7 @@ The UI is headset-relative and user-tracked:
 
 ## Surroundings
 
-<video src="./readme-assets/videos/IlOZW4a-readme.mp4" controls muted playsinline loop autoplay width="720"></video>
+![Surroundings](./readme-assets/gifs/spr6Yij-readme.gif)
 
 ## Start Menu
 ![Rewind Rescue XR](https://i.imgur.com/x3hAdw1.png)
