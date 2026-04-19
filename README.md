@@ -40,7 +40,7 @@ The UI is headset-relative and user-tracked:
 
 ## Core Mechanics (What to Do)
 
-Scenario flow is implemented as a strict 7-step state machine with GamePlay Demo:
+Scenario flow is implemented as a strict 6-step state machine with GamePlay Demo:
 1. Scene safety scan
 2. Check responsiveness
 ![Scene safety scan — responsiveness check](./readme-assets/gifs/yD45WXI-readme.gif)
