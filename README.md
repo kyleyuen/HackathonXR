@@ -43,15 +43,19 @@ The UI is headset-relative and user-tracked:
 Scenario flow is implemented as a strict 6-step state machine with GamePlay Demo:
 1. Scene safety scan
 2. Check responsiveness
+
 ![Scene safety scan — responsiveness check](./readme-assets/gifs/yD45WXI-readme.gif)
 
-3. Open airway
+4. Open airway
+
 ![Open airway](./readme-assets/gifs/Ir2EbzZ-readme.gif)
-4. Call for help -- By clicking on the iphone that is next to the body 
-5. Administer Narcan
+6. Call for help -- By clicking on the iphone that is next to the body 
+7. Administer Narcan
+
 ![Administer Narcan](./readme-assets/gifs/RGjsxn9-readme.gif)
 
-6. Recovery position
+8. Recovery position
+   
 ![Recovery position](./readme-assets/gifs/HNo9qrr-readme.gif)
 
 Mechanic highlights:
