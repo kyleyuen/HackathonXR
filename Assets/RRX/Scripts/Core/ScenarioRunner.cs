@@ -9,7 +9,7 @@ namespace RRX.Core
     {
         [SerializeField] PatientPresenter _patient;
         [SerializeField] bool _logToConsole = true;
-        [SerializeField] bool _timePressureEnabled;
+        [SerializeField] bool _timePressureEnabled = true;
         [SerializeField] int _maxFailures = 3;
         [SerializeField] float _runnerCooldownSeconds = 0.15f;
         [SerializeField] float _duplicateSuppressionSeconds = 0.6f;
@@ -18,7 +18,7 @@ namespace RRX.Core
         readonly RewindSnapshotStore _snapshots = new RewindSnapshotStore();
         SessionTelemetry _telemetry;
 
-        ScenarioState _state = ScenarioState.Arrival;
+        ScenarioState _state = ScenarioState.SceneSafety;
         PatientVisualState _patientVisual;
         bool _phoneConnected;
         bool _narcanUsed;
@@ -73,9 +73,16 @@ namespace RRX.Core
             _patientVisual = OverdoseBaseline.ForState(_state);
             ApplyPatientSnapshot(_patientVisual);
             _snapshots.Clear();
-            _snapshots.Push(CreateCheckpoint(ScenarioState.Arrival));
+            _snapshots.Push(CreateCheckpoint(ScenarioState.SceneSafety));
             RaiseStateChanged();
             LogTelemetry(ScenarioAction.None, "enter");
+
+            // Clock starts immediately so idle time costs the player
+            if (_timePressureEnabled && _clock != null)
+            {
+                _clock.StartClock();
+                _clockStarted = true;
+            }
         }
 
         void OnDisable()
@@ -168,11 +175,7 @@ namespace RRX.Core
                     ApplyAcceptedAction(submission.Action);
                     _lastAcceptedAction = submission.Action;
                     _lastAcceptedRealtime = now;
-                    if (_timePressureEnabled && !_clockStarted && _clock != null)
-                    {
-                        _clock.StartClock();
-                        _clockStarted = true;
-                    }
+                    // Clock already started in Start(); no need to re-start on first action
                 }
             }
 
@@ -217,7 +220,7 @@ namespace RRX.Core
 
         public void ResetScenario()
         {
-            _state = ScenarioState.Arrival;
+            _state = ScenarioState.SceneSafety;
             _phoneConnected = false;
             _narcanUsed = false;
             _failureCount = 0;
@@ -229,7 +232,7 @@ namespace RRX.Core
             _patientVisual = OverdoseBaseline.ForState(_state);
             ApplyPatientSnapshot(_patientVisual);
             _snapshots.Clear();
-            _snapshots.Push(CreateCheckpoint(ScenarioState.Arrival));
+            _snapshots.Push(CreateCheckpoint(ScenarioState.SceneSafety));
             RaiseStateChanged();
 
             _resetGeneration++;
@@ -238,6 +241,11 @@ namespace RRX.Core
             {
                 _clock.ResetClock();
                 _clockStarted = false;
+                if (_timePressureEnabled)
+                {
+                    _clock.StartClock();
+                    _clockStarted = true;
+                }
             }
 
             LogTelemetry(ScenarioAction.None, "reset");
@@ -247,7 +255,16 @@ namespace RRX.Core
         {
             switch (_state)
             {
+                case ScenarioState.SceneSafety when action == ScenarioAction.ScanScene:
+                    _state = ScenarioState.Arrival;
+                    break;
                 case ScenarioState.Arrival when action == ScenarioAction.CheckResponsiveness:
+                    _state = ScenarioState.OpenAirway;
+                    break;
+                case ScenarioState.OpenAirway when action == ScenarioAction.OpenAirway:
+                    _state = ScenarioState.CheckBreathing;
+                    break;
+                case ScenarioState.CheckBreathing when action == ScenarioAction.CheckBreathing:
                     _state = ScenarioState.CallForHelp;
                     break;
                 case ScenarioState.CallForHelp when action == ScenarioAction.Call911:
@@ -256,6 +273,9 @@ namespace RRX.Core
                     break;
                 case ScenarioState.AdministerNarcan when action == ScenarioAction.AdministerNarcan:
                     _narcanUsed = true;
+                    _state = ScenarioState.RecoveryPosition;
+                    break;
+                case ScenarioState.RecoveryPosition when action == ScenarioAction.RecoveryPosition:
                     _state = ScenarioState.Recovery;
                     break;
                 default:

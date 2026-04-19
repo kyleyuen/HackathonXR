@@ -104,6 +104,7 @@ namespace RRX.Editor
             RRXInteractionsBuilder.BindTriggerHotspots();
             RRXWristPanelBuilder.SpawnOrRebuild();
             RRXScenarioFeedbackBuilder.SpawnOrRebuild();
+            RRXAmbienceBuilder.SpawnOrRebuild();
         }
 
         static void EnsureXrBootstrapOnRig()

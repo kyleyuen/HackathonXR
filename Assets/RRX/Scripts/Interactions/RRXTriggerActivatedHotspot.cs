@@ -21,6 +21,8 @@ namespace RRX.Interactions
         [SerializeField] InputActionReference _rightUiPress;
         [SerializeField] float _cooldownSeconds = 0.25f;
         [SerializeField] bool _rightTriggerOnly = true;
+        /// <summary>When true, this GameObject deactivates itself after its action is accepted once per run.</summary>
+        [SerializeField] bool _disableAfterUse = true;
 
         readonly HashSet<XRBaseInteractor> _hovering = new HashSet<XRBaseInteractor>();
         int _hoverCount;
@@ -34,6 +36,15 @@ namespace RRX.Interactions
                 _interactable = GetComponent<XRBaseInteractable>();
             if (_hotspotTag == null)
                 _hotspotTag = GetComponent<RRXScenarioHotspotTag>();
+
+            if (_runner != null)
+                _runner.OnResetRequested += OnResetRequested;
+        }
+
+        void OnDestroy()
+        {
+            if (_runner != null)
+                _runner.OnResetRequested -= OnResetRequested;
         }
 
         void OnEnable()
@@ -56,14 +67,14 @@ namespace RRX.Interactions
                 _interactable.hoverExited.RemoveListener(OnHoverExited);
             }
 
-            if (_runner != null)
-                _runner.OnResetRequested -= OnResetRequested;
+            // Keep reset subscription active so we can re-enable ourselves on scenario reset
             _hovering.Clear();
             _hoverCount = 0;
         }
 
         public void SetRunner(ScenarioRunner runner) => _runner = runner;
         public void SetHotspotTag(RRXScenarioHotspotTag hotspotTag) => _hotspotTag = hotspotTag;
+        public void SetDisableAfterUse(bool disable) => _disableAfterUse = disable;
         public void SetUiPressActions(InputActionReference leftUiPress, InputActionReference rightUiPress)
         {
             _leftUiPress = leftUiPress;
@@ -99,6 +110,12 @@ namespace RRX.Interactions
             var result = _runner.TrySubmit(submission, out _);
             if (result != ScenarioSubmissionResult.RejectedThrottled)
                 _nextAllowedRealtime = Time.realtimeSinceStartup + _cooldownSeconds;
+            if (result == ScenarioSubmissionResult.Accepted && _disableAfterUse)
+            {
+                // Disable the interactable to prevent further hits without hiding the visual
+                if (_interactable != null) _interactable.enabled = false;
+                enabled = false;
+            }
         }
 
         XRBaseInteractor PickInteractor(bool leftPressed, bool rightPressed)
@@ -136,6 +153,11 @@ namespace RRX.Interactions
         void OnResetRequested(int _)
         {
             _nextAllowedRealtime = 0f;
+            if (_disableAfterUse)
+            {
+                if (_interactable != null) _interactable.enabled = true;
+                enabled = true;
+            }
         }
     }
 }

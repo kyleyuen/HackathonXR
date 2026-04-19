@@ -7,6 +7,10 @@ namespace RRX.Core
         Shoulder = 1,
         Phone = 2,
         Nose = 3,
-        WristUi = 4
+        WristUi = 4,
+        SceneScan = 5,
+        Chin = 6,
+        Mouth = 7,
+        Hip = 8
     }
 }

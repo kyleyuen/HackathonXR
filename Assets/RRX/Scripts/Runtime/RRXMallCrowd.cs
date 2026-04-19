@@ -5,8 +5,9 @@ using Unity.XR.CoreUtils;
 namespace RRX.Environment
 {
     /// <summary>
-    /// Simple capsule “shoppers” wandering on the plaza disc; renderers disable beyond <see cref="_hideDistanceMeters"/>
+    /// Simple capsule "shoppers" wandering on the plaza disc; renderers disable beyond <see cref="_hideDistanceMeters"/>
     /// and re-enable when the camera is closer (hysteresis via <see cref="_showDistanceMeters"/>).
+    /// Reacts to <see cref="ScenarioRunner"/> state changes: rubberneck, back away, or scatter.
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class RRXMallCrowd : MonoBehaviour
@@ -19,6 +20,11 @@ namespace RRX.Environment
         [SerializeField] float _showDistanceMeters = 16f;
         [SerializeField] float _hideDistanceMeters = 19f;
         [SerializeField] float _playerExclusionRadiusMeters = 0.5f;
+
+        enum CrowdMode { Wander, Rubberneck, BackAway, Scatter }
+        CrowdMode _mode = CrowdMode.Wander;
+        Vector3 _patientPos = Vector3.zero;
+        ScenarioRunner _runner;
 
         Transform _camera;
         Pedestrian[] _peds;
@@ -84,6 +90,104 @@ namespace RRX.Environment
                     Target = RandomDiscPoint(minR, maxR, playerXZ, exR),
                     Speed = Random.Range(_walkSpeedMin, _walkSpeedMax),
                 };
+            }
+
+            // Subscribe to scenario runner for crowd reactions
+            _runner = FindObjectOfType<ScenarioRunner>();
+            if (_runner != null)
+            {
+                _runner.OnStateChanged.AddListener(OnScenarioStateChanged);
+                _runner.OnResetRequested += _ => SetMode(CrowdMode.Wander);
+            }
+
+            var patientGO = GameObject.Find("RRX_Patient");
+            if (patientGO != null)
+                _patientPos = patientGO.transform.position;
+        }
+
+        void OnDestroy()
+        {
+            if (_runner != null)
+            {
+                _runner.OnStateChanged.RemoveListener(OnScenarioStateChanged);
+            }
+        }
+
+        void OnScenarioStateChanged(ScenarioState state)
+        {
+            switch (state)
+            {
+                case ScenarioState.SceneSafety:
+                case ScenarioState.Arrival:
+                    SetMode(CrowdMode.Wander);
+                    break;
+                case ScenarioState.OpenAirway:
+                case ScenarioState.CheckBreathing:
+                case ScenarioState.CallForHelp:
+                    SetMode(CrowdMode.Rubberneck);
+                    break;
+                case ScenarioState.AdministerNarcan:
+                case ScenarioState.RecoveryPosition:
+                    SetMode(CrowdMode.BackAway);
+                    break;
+                case ScenarioState.CriticalFailure:
+                    SetMode(CrowdMode.Scatter);
+                    break;
+                case ScenarioState.Recovery:
+                    SetMode(CrowdMode.Wander);
+                    break;
+            }
+        }
+
+        void SetMode(CrowdMode mode)
+        {
+            _mode = mode;
+            if (_peds == null) return;
+
+            float maxR = Mathf.Max(0.5f, RRXPlayArea.RadiusMeters - 0.4f);
+            float minR = Mathf.Clamp(_minRadiusFromCenter, 0.2f, maxR * 0.95f);
+            var playerXZ = PlayerXZ();
+            var exR = EffectiveExclusionRadius(maxR);
+            var patientXZ = new Vector3(_patientPos.x, 0f, _patientPos.z);
+
+            for (int i = 0; i < _peds.Length; i++)
+            {
+                var p = _peds[i];
+                if (p.Root == null) continue;
+
+                switch (mode)
+                {
+                    case CrowdMode.Rubberneck:
+                        // Crowd drifts toward patient area to watch (ring at 2-3 m away)
+                        float angle = i * (Mathf.PI * 2f / _peds.Length);
+                        float dist  = Random.Range(1.8f, 3.0f);
+                        p.Target = patientXZ + new Vector3(Mathf.Cos(angle) * dist, 0f, Mathf.Sin(angle) * dist);
+                        p.Speed  = Random.Range(0.35f, 0.65f);
+                        break;
+
+                    case CrowdMode.BackAway:
+                        // Back away from patient — pick a point on the outer half of the plaza
+                        var away = (p.Root.position - _patientPos).normalized;
+                        away.y = 0f;
+                        float backR = Random.Range(maxR * 0.55f, maxR * 0.9f);
+                        p.Target = away * backR;
+                        p.Speed  = Random.Range(0.8f, 1.3f);
+                        break;
+
+                    case CrowdMode.Scatter:
+                        // Sprint to outer edge
+                        p.Target = RandomDiscPoint(maxR * 0.8f, maxR, playerXZ, exR);
+                        p.Speed  = Random.Range(2.0f, 3.5f);
+                        break;
+
+                    case CrowdMode.Wander:
+                    default:
+                        p.Target = RandomDiscPoint(minR, maxR, playerXZ, exR);
+                        p.Speed  = Random.Range(_walkSpeedMin, _walkSpeedMax);
+                        break;
+                }
+
+                _peds[i] = p;
             }
         }
 
@@ -196,6 +300,7 @@ namespace RRX.Environment
             float minR = Mathf.Clamp(_minRadiusFromCenter, 0.2f, maxR * 0.95f);
             var playerXZ = canCull ? new Vector3(camPos.x, 0f, camPos.z) : Vector3.zero;
             var exR = EffectiveExclusionRadius(maxR);
+            var patientXZ = new Vector3(_patientPos.x, 0f, _patientPos.z);
 
             for (var i = 0; i < _peds.Length; i++)
             {
@@ -227,17 +332,39 @@ namespace RRX.Environment
                 var to = p.Target;
                 to.y = 0f;
                 if (canCull && SqrXZDistance(to, playerXZ) < exR * exR)
-                    p.Target = RandomDiscPoint(minR, maxR, playerXZ, exR);
+                {
+                    p.Target = _mode == CrowdMode.Wander
+                        ? RandomDiscPoint(minR, maxR, playerXZ, exR)
+                        : p.Target; // Don't randomize mid-mode
+                }
 
                 to = p.Target;
                 to.y = 0f;
                 var delta = to - xz;
+
                 if (delta.sqrMagnitude < _targetReachEpsilon * _targetReachEpsilon)
                 {
-                    p.Target = canCull
-                        ? RandomDiscPoint(minR, maxR, playerXZ, exR)
-                        : RandomDiscPointNoExclusion(minR, maxR);
-                    p.Speed = Random.Range(_walkSpeedMin, _walkSpeedMax);
+                    // Pick a new target based on mode
+                    if (_mode == CrowdMode.Rubberneck)
+                    {
+                        float ang = Random.Range(0f, Mathf.PI * 2f);
+                        float dist = Random.Range(1.8f, 3.0f);
+                        p.Target = patientXZ + new Vector3(Mathf.Cos(ang) * dist, 0f, Mathf.Sin(ang) * dist);
+                        p.Speed = Random.Range(0.2f, 0.5f);
+                    }
+                    else if (_mode == CrowdMode.BackAway || _mode == CrowdMode.Scatter)
+                    {
+                        // Stay near outer edge
+                        p.Target = RandomDiscPoint(maxR * 0.7f, maxR, playerXZ, exR);
+                        p.Speed = Random.Range(_walkSpeedMin, _walkSpeedMax);
+                    }
+                    else
+                    {
+                        p.Target = canCull
+                            ? RandomDiscPoint(minR, maxR, playerXZ, exR)
+                            : RandomDiscPointNoExclusion(minR, maxR);
+                        p.Speed = Random.Range(_walkSpeedMin, _walkSpeedMax);
+                    }
                 }
                 else
                 {
@@ -246,8 +373,17 @@ namespace RRX.Environment
                     if (canCull)
                         PushOutsidePlayerExclusion(ref xz, playerXZ, exR);
                     p.Root.position = new Vector3(xz.x, 0f, xz.z);
-                    if (delta.sqrMagnitude > 0.0001f)
-                        p.Root.rotation = Quaternion.LookRotation(delta.normalized, Vector3.up);
+
+                    // In rubberneck mode, face patient when close enough
+                    Vector3 faceDir;
+                    if (_mode == CrowdMode.Rubberneck && SqrXZDistance(xz, patientXZ) < 4f * 4f)
+                        faceDir = (patientXZ - xz).normalized;
+                    else if (delta.sqrMagnitude > 0.0001f)
+                        faceDir = delta.normalized;
+                    else
+                        faceDir = Vector3.forward;
+
+                    p.Root.rotation = Quaternion.LookRotation(faceDir, Vector3.up);
                 }
 
                 _peds[i] = p;

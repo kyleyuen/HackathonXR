@@ -1,6 +1,6 @@
 namespace RRX.Core
 {
-    /// <summary>Finite states for the single overdose scenario graph.</summary>
+    /// <summary>Finite states for the 7-step overdose scenario graph.</summary>
     public enum ScenarioState
     {
         Arrival = 0,
@@ -8,6 +8,10 @@ namespace RRX.Core
         CallForHelp = 2,
         AdministerNarcan = 3,
         Recovery = 4,
-        CriticalFailure = 5
+        CriticalFailure = 5,
+        SceneSafety = 6,
+        OpenAirway = 7,
+        CheckBreathing = 8,
+        RecoveryPosition = 9
     }
 }

@@ -1,12 +1,20 @@
 namespace RRX.Core
 {
-    /// <summary>Static tuning for victim presentation across scenario beats.</summary>
+    /// <summary>Static tuning for victim presentation across all 7 scenario beats.</summary>
     public static class OverdoseBaseline
     {
         public static PatientVisualState ForState(ScenarioState state)
         {
             switch (state)
             {
+                case ScenarioState.SceneSafety:
+                    return new PatientVisualState
+                    {
+                        BreathRate = 0.40f,
+                        Consciousness = 0.30f,
+                        Cyanosis = 0.45f,
+                        HeadSlump = 0.55f
+                    };
                 case ScenarioState.Arrival:
                     return new PatientVisualState
                     {
@@ -17,21 +25,45 @@ namespace RRX.Core
                     };
                 case ScenarioState.AssessResponsiveness:
                     return ForState(ScenarioState.Arrival);
+                case ScenarioState.OpenAirway:
+                    return new PatientVisualState
+                    {
+                        BreathRate = 0.30f,
+                        Consciousness = 0.18f,
+                        Cyanosis = 0.60f,
+                        HeadSlump = 0.70f
+                    };
+                case ScenarioState.CheckBreathing:
+                    return new PatientVisualState
+                    {
+                        BreathRate = 0.25f,
+                        Consciousness = 0.12f,
+                        Cyanosis = 0.65f,
+                        HeadSlump = 0.75f
+                    };
                 case ScenarioState.CallForHelp:
                     return new PatientVisualState
                     {
-                        BreathRate = 0.28f,
-                        Consciousness = 0.15f,
-                        Cyanosis = 0.62f,
-                        HeadSlump = 0.72f
+                        BreathRate = 0.20f,
+                        Consciousness = 0.08f,
+                        Cyanosis = 0.72f,
+                        HeadSlump = 0.80f
                     };
                 case ScenarioState.AdministerNarcan:
                     return new PatientVisualState
                     {
-                        BreathRate = 0.22f,
-                        Consciousness = 0.08f,
-                        Cyanosis = 0.72f,
-                        HeadSlump = 0.82f
+                        BreathRate = 0.15f,
+                        Consciousness = 0.04f,
+                        Cyanosis = 0.82f,
+                        HeadSlump = 0.90f
+                    };
+                case ScenarioState.RecoveryPosition:
+                    return new PatientVisualState
+                    {
+                        BreathRate = 0.55f,
+                        Consciousness = 0.40f,
+                        Cyanosis = 0.30f,
+                        HeadSlump = 0.40f
                     };
                 case ScenarioState.Recovery:
                     return new PatientVisualState

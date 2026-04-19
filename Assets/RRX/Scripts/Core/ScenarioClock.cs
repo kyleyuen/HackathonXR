@@ -6,8 +6,8 @@ namespace RRX.Core
     /// <summary>Optional clock for urgency / timeout pressure.</summary>
     public sealed class ScenarioClock : MonoBehaviour
     {
-        [SerializeField] float _warnSeconds = 90f;
-        [SerializeField] float _expireSeconds = 120f;
+        [SerializeField] float _warnSeconds = 60f;
+        [SerializeField] float _expireSeconds = 90f;
 
         bool _running;
         bool _warned;

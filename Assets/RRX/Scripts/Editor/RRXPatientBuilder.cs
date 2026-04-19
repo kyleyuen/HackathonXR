@@ -75,11 +75,33 @@ namespace RRX.Editor
             var runner = Object.FindObjectOfType<ScenarioRunner>();
             WirePresenterToRunner(runner, presenter);
 
+            BuildHotspot(root.transform, "Hotspot_SceneScan",
+                localCenter: new Vector3(0f, 0.35f, TorsoLocalZ),
+                localSize: new Vector3(1.8f, 1.0f, 2.4f),
+                material: null,          // invisible — no mesh renderer
+                hotspotId: ScenarioHotspotId.SceneScan,
+                runner: runner,
+                visible: false);
+
             BuildHotspot(root.transform, "Hotspot_Shoulder",
                 localCenter: new Vector3(-0.19f, 0.26f, TorsoLocalZ - 0.22f),
                 localSize: new Vector3(0.20f, 0.20f, 0.20f),
                 material: hotspotMat,
                 hotspotId: ScenarioHotspotId.Shoulder,
+                runner: runner);
+
+            BuildHotspot(root.transform, "Hotspot_Chin",
+                localCenter: new Vector3(0f, 0.12f, HeadLocalZ + 0.12f),
+                localSize: new Vector3(0.16f, 0.12f, 0.14f),
+                material: hotspotMat,
+                hotspotId: ScenarioHotspotId.Chin,
+                runner: runner);
+
+            BuildHotspot(root.transform, "Hotspot_Mouth",
+                localCenter: new Vector3(0f, 0.16f, HeadLocalZ - 0.04f),
+                localSize: new Vector3(0.16f, 0.12f, 0.14f),
+                material: hotspotMat,
+                hotspotId: ScenarioHotspotId.Mouth,
                 runner: runner);
 
             BuildHotspot(root.transform, "Hotspot_NasalNarcan",
@@ -89,7 +111,15 @@ namespace RRX.Editor
                 hotspotId: ScenarioHotspotId.Nose,
                 runner: runner);
 
+            BuildHotspot(root.transform, "Hotspot_Hip",
+                localCenter: new Vector3(0.15f, 0.14f, PelvisLocalZ),
+                localSize: new Vector3(0.22f, 0.20f, 0.20f),
+                material: hotspotMat,
+                hotspotId: ScenarioHotspotId.Hip,
+                runner: runner);
+
             BuildPhone(root.transform, phoneMat, runner);
+            BuildDecoys(root.transform, runner);
 
             return root;
         }
@@ -183,17 +213,107 @@ namespace RRX.Editor
         }
 
         static void BuildHotspot(Transform parent, string name, Vector3 localCenter, Vector3 localSize,
-            Material material, ScenarioHotspotId hotspotId, ScenarioRunner runner)
+            Material material, ScenarioHotspotId hotspotId, ScenarioRunner runner, bool visible = true)
         {
-            var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            go.name = name;
-            go.transform.SetParent(parent, false);
-            Undo.RegisterCreatedObjectUndo(go, name);
-            go.transform.localPosition = localCenter;
-            go.transform.localScale = localSize;
-            ApplyMat(go, material);
+            GameObject go;
+            if (visible)
+            {
+                go = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                go.name = name;
+                go.transform.SetParent(parent, false);
+                Undo.RegisterCreatedObjectUndo(go, name);
+                go.transform.localPosition = localCenter;
+                go.transform.localScale = localSize;
+                if (material != null)
+                    ApplyMat(go, material);
+                else
+                    Object.DestroyImmediate(go.GetComponent<MeshRenderer>());
+            }
+            else
+            {
+                go = new GameObject(name);
+                go.transform.SetParent(parent, false);
+                Undo.RegisterCreatedObjectUndo(go, name);
+                go.transform.localPosition = localCenter;
+                go.transform.localScale = localSize;
+                var col = Undo.AddComponent<BoxCollider>(go);
+                col.isTrigger = false;
 
-            var col = go.GetComponent<BoxCollider>();
+                var interactable = Undo.AddComponent<XRSimpleInteractable>(go);
+                interactable.colliders.Clear();
+                interactable.colliders.Add(col);
+
+                var tag = Undo.AddComponent<RRXScenarioHotspotTag>(go);
+                SetHotspotId(tag, hotspotId);
+                var trigger = Undo.AddComponent<RRXTriggerActivatedHotspot>(go);
+                trigger.SetRunner(runner);
+                trigger.SetHotspotTag(tag);
+                // SceneScan deactivates after scene is scanned
+                trigger.SetDisableAfterUse(true);
+                Undo.AddComponent<RRXHotspotHighlight>(go);
+                return;
+            }
+
+            var col2 = go.GetComponent<BoxCollider>();
+            if (col2 != null)
+                col2.isTrigger = false;
+
+            var interactable2 = Undo.AddComponent<XRSimpleInteractable>(go);
+            interactable2.colliders.Clear();
+            if (col2 != null)
+                interactable2.colliders.Add(col2);
+
+            var tag2 = Undo.AddComponent<RRXScenarioHotspotTag>(go);
+            SetHotspotId(tag2, hotspotId);
+            var trigger2 = Undo.AddComponent<RRXTriggerActivatedHotspot>(go);
+            trigger2.SetRunner(runner);
+            trigger2.SetHotspotTag(tag2);
+            Undo.AddComponent<RRXHotspotHighlight>(go);
+        }
+
+        static void BuildDecoys(Transform root, ScenarioRunner runner)
+        {
+            var pillMat = GetOrCreateMat("RRX_Mat_DecoyPill", new Color(0.85f, 0.72f, 0.12f, 0.75f));
+            ApplyTransparent(pillMat);
+            var syringeMat = GetOrCreateMat("RRX_Mat_DecoySyringe", new Color(0.88f, 0.92f, 0.95f, 0.65f));
+            ApplyTransparent(syringeMat);
+            var waterMat = GetOrCreateMat("RRX_Mat_DecoyWater", new Color(0.22f, 0.55f, 0.90f, 0.65f));
+            ApplyTransparent(waterMat);
+
+            BuildDecoy(root, "Decoy_PillBottle",
+                localPos: new Vector3(-0.55f, 0.06f, TorsoLocalZ + 0.15f),
+                localScale: new Vector3(0.07f, 0.12f, 0.07f),
+                mat: pillMat,
+                label: "Pills",
+                runner: runner);
+
+            BuildDecoy(root, "Decoy_Syringe",
+                localPos: new Vector3(0.50f, 0.04f, TorsoLocalZ + 0.30f),
+                localScale: new Vector3(0.04f, 0.04f, 0.18f),
+                mat: syringeMat,
+                label: "Syringe",
+                runner: runner);
+
+            BuildDecoy(root, "Decoy_WaterBottle",
+                localPos: new Vector3(-0.48f, 0.08f, PelvisLocalZ + 0.10f),
+                localScale: new Vector3(0.07f, 0.15f, 0.07f),
+                mat: waterMat,
+                label: "Water",
+                runner: runner);
+        }
+
+        static void BuildDecoy(Transform root, string name, Vector3 localPos, Vector3 localScale,
+            Material mat, string label, ScenarioRunner runner)
+        {
+            var go = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+            go.name = name;
+            go.transform.SetParent(root, false);
+            Undo.RegisterCreatedObjectUndo(go, name);
+            go.transform.localPosition = localPos;
+            go.transform.localScale = localScale;
+            ApplyMat(go, mat);
+
+            var col = go.GetComponent<CapsuleCollider>();
             if (col != null)
                 col.isTrigger = false;
 
@@ -203,11 +323,24 @@ namespace RRX.Editor
                 interactable.colliders.Add(col);
 
             var tag = Undo.AddComponent<RRXScenarioHotspotTag>(go);
-            SetHotspotId(tag, hotspotId);
+            SetHotspotId(tag, ScenarioHotspotId.None);  // Wrong action → failure escalation
             var trigger = Undo.AddComponent<RRXTriggerActivatedHotspot>(go);
             trigger.SetRunner(runner);
             trigger.SetHotspotTag(tag);
-            Undo.AddComponent<RRXHotspotHighlight>(go);
+            trigger.SetDisableAfterUse(false);  // Decoys stay active as persistent traps
+
+            // Small label above decoy
+            var labelGO = new GameObject("Label");
+            Undo.RegisterCreatedObjectUndo(labelGO, "Label");
+            labelGO.transform.SetParent(go.transform, false);
+            labelGO.transform.localPosition = new Vector3(0f, 0.6f, 0f);
+            labelGO.transform.localRotation = Quaternion.identity;
+            var mesh = Undo.AddComponent<TextMesh>(labelGO);
+            mesh.text = label;
+            mesh.anchor = TextAnchor.MiddleCenter;
+            mesh.characterSize = 0.08f;
+            mesh.fontSize = 24;
+            mesh.color = new Color(1f, 0.8f, 0.2f);
         }
 
         static void BuildPhone(Transform root, Material phoneMat, ScenarioRunner runner)

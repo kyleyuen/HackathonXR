@@ -6,7 +6,10 @@ using UnityEngine.UI;
 
 namespace RRX.UI
 {
-    /// <summary>Wrist-anchored objective panel for step/hint/failure guidance.</summary>
+    /// <summary>
+    /// Wrist-anchored objective panel with two-tier hints: starts vague, upgrades to specific once
+    /// the current hotspot's reveal delay fires or the player makes 2+ mistakes.
+    /// </summary>
     [DisallowMultipleComponent]
     public sealed class RRXWristObjectivePanel : MonoBehaviour
     {
@@ -23,6 +26,7 @@ namespace RRX.UI
         [SerializeField] Vector3 _controllerLocalScale = new Vector3(0.0007f, 0.0007f, 0.0007f);
 
         float _failureFlashUntil;
+        RRXHotspotHighlight _currentHighlight;
 
         void Awake()
         {
@@ -43,6 +47,8 @@ namespace RRX.UI
                 _runner.OnResetRequested += OnResetRequested;
                 _runner.OnTimePressureWarning += OnTimePressureWarning;
             }
+
+            SubscribeToCurrentHighlight();
             Refresh();
         }
 
@@ -54,6 +60,8 @@ namespace RRX.UI
                 _runner.OnResetRequested -= OnResetRequested;
                 _runner.OnTimePressureWarning -= OnTimePressureWarning;
             }
+
+            UnsubscribeHighlight();
         }
 
         void Update()
@@ -61,7 +69,8 @@ namespace RRX.UI
             RefreshMeta();
             if (_panelTint != null)
             {
-                _panelTint.color = Time.realtimeSinceStartup < _failureFlashUntil
+                bool inWarnZone = _clock != null && _clock.ElapsedSeconds >= 50f;
+                _panelTint.color = Time.realtimeSinceStartup < _failureFlashUntil || inWarnZone
                     ? new Color(0.8f, 0.2f, 0.2f, 0.35f)
                     : new Color(0.1f, 0.12f, 0.15f, 0.22f);
             }
@@ -69,7 +78,6 @@ namespace RRX.UI
 
         void LateUpdate()
         {
-            // Keep hints fixed above the controller axis with a constant perpendicular orientation.
             ApplyControllerLocalAnchor();
         }
 
@@ -89,6 +97,9 @@ namespace RRX.UI
                 var highlight = tag.GetComponent<RRXHotspotHighlight>();
                 highlight?.PulseNow();
             }
+
+            // Clicking hint upgrades to specific text immediately
+            Refresh();
         }
 
         void OnResetClicked()
@@ -98,18 +109,51 @@ namespace RRX.UI
 
         void OnStateChanged(ScenarioState _)
         {
+            SubscribeToCurrentHighlight();
             Refresh();
         }
 
         void OnResetRequested(int _)
         {
             _failureFlashUntil = 0f;
+            SubscribeToCurrentHighlight();
             Refresh();
         }
 
         void OnTimePressureWarning()
         {
             _failureFlashUntil = Time.realtimeSinceStartup + 1f;
+        }
+
+        void OnHighlightRevealed()
+        {
+            Refresh();
+        }
+
+        void SubscribeToCurrentHighlight()
+        {
+            UnsubscribeHighlight();
+
+            if (_runner == null)
+                return;
+
+            var tag = RRXScenarioHotspotTag.Find(_runner.NextRequiredHotspot);
+            if (tag == null) return;
+
+            var highlight = tag.GetComponent<RRXHotspotHighlight>();
+            if (highlight == null) return;
+
+            _currentHighlight = highlight;
+            _currentHighlight.OnReveal += OnHighlightRevealed;
+        }
+
+        void UnsubscribeHighlight()
+        {
+            if (_currentHighlight != null)
+            {
+                _currentHighlight.OnReveal -= OnHighlightRevealed;
+                _currentHighlight = null;
+            }
         }
 
         void Refresh()
@@ -119,8 +163,9 @@ namespace RRX.UI
 
             if (_titleText != null)
                 _titleText.text = ScenarioCopy.TitleFor(_runner.CurrentState);
+
             if (_hintText != null)
-                _hintText.text = ScenarioCopy.HintFor(_runner.CurrentState, _runner.FailureCount);
+                _hintText.text = BuildHintText();
 
             if (_resetButton != null)
             {
@@ -132,13 +177,28 @@ namespace RRX.UI
             RefreshMeta();
         }
 
+        string BuildHintText()
+        {
+            var state = _runner.CurrentState;
+            var failures = _runner.FailureCount;
+
+            bool showSpecific = failures >= 2
+                || (_currentHighlight != null && _currentHighlight.IsRevealed)
+                || state == ScenarioState.Recovery
+                || state == ScenarioState.CriticalFailure;
+
+            return showSpecific
+                ? ScenarioCopy.SpecificHintFor(state, failures)
+                : ScenarioCopy.VagueHintFor(state);
+        }
+
         void RefreshMeta()
         {
             if (_metaText == null || _runner == null)
                 return;
 
             string meta = $"Mistakes: {_runner.FailureCount}/3";
-            if (_clock != null)
+            if (_clock != null && _clock.ElapsedSeconds > 0f)
                 meta = $"{meta}  Time: {Mathf.RoundToInt(_clock.ElapsedSeconds)}s";
             _metaText.text = meta;
         }
