@@ -17,6 +17,7 @@ namespace RRX.Core
         public event Action Expired;
 
         public float ElapsedSeconds => _running ? Time.realtimeSinceStartup - _startedRealtime : 0f;
+        public float WarnSeconds => _warnSeconds;
 
         public void StartClock()
         {
@@ -30,6 +31,14 @@ namespace RRX.Core
             _running = false;
             _warned = false;
             _startedRealtime = 0f;
+        }
+
+        public void SetElapsedSeconds(float elapsedSeconds)
+        {
+            var clamped = Mathf.Max(0f, elapsedSeconds);
+            _startedRealtime = Time.realtimeSinceStartup - clamped;
+            _running = true;
+            _warned = clamped >= _warnSeconds;
         }
 
         void Update()

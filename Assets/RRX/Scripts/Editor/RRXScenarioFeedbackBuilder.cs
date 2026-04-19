@@ -1,3 +1,4 @@
+using RRX.Core;
 using RRX.Runtime;
 using UnityEditor;
 using UnityEngine;
@@ -27,8 +28,22 @@ namespace RRX.Editor
             var src = Undo.AddComponent<AudioSource>(go);
             src.spatialBlend = 0f;
             src.playOnAwake = false;
-            Undo.AddComponent<RRXProceduralAudio>(go);
-            Undo.AddComponent<RRXScenarioFeedback>(go);
+            var bank = Undo.AddComponent<RRXProceduralAudio>(go);
+            var feedback = Undo.AddComponent<RRXScenarioFeedback>(go);
+
+            var runner = Object.FindObjectOfType<ScenarioRunner>();
+            if (runner != null)
+            {
+                var so = new SerializedObject(feedback);
+                var runnerProp = so.FindProperty("_runner");
+                var bankProp = so.FindProperty("_audioBank");
+                if (runnerProp != null)
+                    runnerProp.objectReferenceValue = runner;
+                if (bankProp != null)
+                    bankProp.objectReferenceValue = bank;
+                so.ApplyModifiedPropertiesWithoutUndo();
+                EditorUtility.SetDirty(feedback);
+            }
             return go;
         }
     }

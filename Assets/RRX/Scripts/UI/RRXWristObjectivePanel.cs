@@ -69,7 +69,7 @@ namespace RRX.UI
             RefreshMeta();
             if (_panelTint != null)
             {
-                bool inWarnZone = _clock != null && _clock.ElapsedSeconds >= 50f;
+                bool inWarnZone = _clock != null && _clock.ElapsedSeconds >= _clock.WarnSeconds;
                 _panelTint.color = Time.realtimeSinceStartup < _failureFlashUntil || inWarnZone
                     ? new Color(0.8f, 0.2f, 0.2f, 0.35f)
                     : new Color(0.1f, 0.12f, 0.15f, 0.22f);

@@ -10,7 +10,8 @@ namespace RRX.Core
                 case ScenarioState.SceneSafety:
                     return new PatientVisualState
                     {
-                        BreathRate = 0.40f,
+                        BreathRate = 0.06f,
+                        IsApnea = true,
                         Consciousness = 0.30f,
                         Cyanosis = 0.45f,
                         HeadSlump = 0.55f
@@ -18,17 +19,17 @@ namespace RRX.Core
                 case ScenarioState.Arrival:
                     return new PatientVisualState
                     {
-                        BreathRate = 0.35f,
+                        BreathRate = 0.10f,
+                        IsApnea = true,
                         Consciousness = 0.25f,
                         Cyanosis = 0.55f,
                         HeadSlump = 0.65f
                     };
-                case ScenarioState.AssessResponsiveness:
-                    return ForState(ScenarioState.Arrival);
                 case ScenarioState.OpenAirway:
                     return new PatientVisualState
                     {
-                        BreathRate = 0.30f,
+                        BreathRate = 0.20f,
+                        IsApnea = false,
                         Consciousness = 0.18f,
                         Cyanosis = 0.60f,
                         HeadSlump = 0.70f
@@ -37,6 +38,7 @@ namespace RRX.Core
                     return new PatientVisualState
                     {
                         BreathRate = 0.25f,
+                        IsApnea = false,
                         Consciousness = 0.12f,
                         Cyanosis = 0.65f,
                         HeadSlump = 0.75f
@@ -45,6 +47,7 @@ namespace RRX.Core
                     return new PatientVisualState
                     {
                         BreathRate = 0.20f,
+                        IsApnea = false,
                         Consciousness = 0.08f,
                         Cyanosis = 0.72f,
                         HeadSlump = 0.80f
@@ -53,6 +56,7 @@ namespace RRX.Core
                     return new PatientVisualState
                     {
                         BreathRate = 0.15f,
+                        IsApnea = false,
                         Consciousness = 0.04f,
                         Cyanosis = 0.82f,
                         HeadSlump = 0.90f
@@ -61,6 +65,7 @@ namespace RRX.Core
                     return new PatientVisualState
                     {
                         BreathRate = 0.55f,
+                        IsApnea = false,
                         Consciousness = 0.40f,
                         Cyanosis = 0.30f,
                         HeadSlump = 0.40f
@@ -69,6 +74,7 @@ namespace RRX.Core
                     return new PatientVisualState
                     {
                         BreathRate = 0.85f,
+                        IsApnea = false,
                         Consciousness = 0.75f,
                         Cyanosis = 0.15f,
                         HeadSlump = 0.25f
@@ -77,7 +83,8 @@ namespace RRX.Core
                 default:
                     return new PatientVisualState
                     {
-                        BreathRate = 0.05f,
+                        BreathRate = 0f,
+                        IsApnea = true,
                         Consciousness = 0f,
                         Cyanosis = 0.95f,
                         HeadSlump = 0.95f
@@ -99,6 +106,7 @@ namespace RRX.Core
             return new PatientVisualState
             {
                 BreathRate = UnityEngine.Mathf.Clamp01(baseline.BreathRate * breathScale),
+                IsApnea = baseline.IsApnea || baseline.BreathRate <= 0.12f,
                 Consciousness = UnityEngine.Mathf.Clamp01(baseline.Consciousness * consciousnessScale),
                 Cyanosis = UnityEngine.Mathf.Clamp01(baseline.Cyanosis + cyanosisLift),
                 HeadSlump = UnityEngine.Mathf.Clamp01(baseline.HeadSlump + slumpLift)

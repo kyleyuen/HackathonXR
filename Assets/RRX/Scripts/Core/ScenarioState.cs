@@ -4,6 +4,7 @@ namespace RRX.Core
     public enum ScenarioState
     {
         Arrival = 0,
+        [System.Obsolete("Use Arrival. Kept for serialized compatibility only.")]
         AssessResponsiveness = 1,
         CallForHelp = 2,
         AdministerNarcan = 3,
