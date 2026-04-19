@@ -39,16 +39,16 @@ The UI is headset-relative and user-tracked:
 Scenario flow is implemented as a strict 7-step state machine with GamePlay Demo:
 1. Scene safety scan
 2. Check responsiveness
-![Rewind Rescue XR](https://i.imgur.com/yD45WXI.gif)
+![Scene safety scan — responsiveness check](./readme-assets/gifs/yD45WXI-readme.gif)
 
 3. Open airway
-![Rewind Rescue XR](https://i.imgur.com/Ir2EbzZ.gif)
+![Open airway](./readme-assets/gifs/Ir2EbzZ-readme.gif)
 4. Call for help -- By clicking on the iphone that is next to the body 
 5. Administer Narcan
-![Rewind Rescue XR](https://i.imgur.com/RGjsxn9.gif)
+![Administer Narcan](./readme-assets/gifs/RGjsxn9-readme.gif)
 
 6. Recovery position
-![Rewind Rescue XR](https://i.imgur.com/HNo9qrr.gif)
+![Recovery position](./readme-assets/gifs/HNo9qrr-readme.gif)
 
 Mechanic highlights:
 - Correct hotspots/actions advance state.
