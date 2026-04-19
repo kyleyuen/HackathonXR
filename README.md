@@ -46,16 +46,16 @@ Scenario flow is implemented as a strict 6-step state machine with GamePlay Demo
 
 ![Scene safety scan — responsiveness check](./readme-assets/gifs/yD45WXI-readme.gif)
 
-4. Open airway
+3. Open airway
 
 ![Open airway](./readme-assets/gifs/Ir2EbzZ-readme.gif)
 
-6. Call for help -- By clicking on the iphone that is next to the body 
-7. Administer Narcan
+4. Call for help -- By clicking on the iphone that is next to the body 
+5. Administer Narcan
 
 ![Administer Narcan](./readme-assets/gifs/RGjsxn9-readme.gif)
 
-8. Recovery position
+6. Recovery position
    
 ![Recovery position](./readme-assets/gifs/HNo9qrr-readme.gif)
 
