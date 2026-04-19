@@ -29,7 +29,6 @@ namespace RRX.Core
         float _lastSubmitRealtime = -1f;
         float _lastAcceptedRealtime = -1f;
         ScenarioAction _lastAcceptedAction = ScenarioAction.None;
-        bool _clockStarted;
 
         public ScenarioState CurrentState => _state;
         public PatientVisualState CurrentPatientVisual => _patientVisual;
@@ -79,10 +78,7 @@ namespace RRX.Core
 
             // Clock starts immediately so idle time costs the player
             if (_timePressureEnabled && _clock != null)
-            {
                 _clock.StartClock();
-                _clockStarted = true;
-            }
         }
 
         void OnDisable()
@@ -204,10 +200,7 @@ namespace RRX.Core
             _lastAcceptedRealtime = -1f;
             _lastSubmitRealtime = -1f;
             if (_clock != null && _timePressureEnabled)
-            {
                 _clock.SetElapsedSeconds(cp.ClockElapsedSeconds);
-                _clockStarted = true;
-            }
 
             ApplyPatientSnapshot(_patientVisual);
             _snapshots.TrimAfter(index);
@@ -245,12 +238,8 @@ namespace RRX.Core
             if (_clock != null)
             {
                 _clock.ResetClock();
-                _clockStarted = false;
                 if (_timePressureEnabled)
-                {
                     _clock.StartClock();
-                    _clockStarted = true;
-                }
             }
 
             LogTelemetry(ScenarioAction.None, "reset");
@@ -325,7 +314,7 @@ namespace RRX.Core
                 NarcanUsed = _narcanUsed,
                 FailureCount = _failureCount,
                 ScenarioTimeSeconds = Time.time - _scenarioStartTime,
-                ClockElapsedSeconds = _clock != null && _clockStarted ? _clock.ElapsedSeconds : 0f,
+                ClockElapsedSeconds = _clock != null && _clock.IsRunning ? _clock.ElapsedSeconds : 0f,
                 RewindGeneration = _rewindCount
             };
         }

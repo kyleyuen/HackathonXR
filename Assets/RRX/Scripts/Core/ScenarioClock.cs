@@ -18,6 +18,7 @@ namespace RRX.Core
 
         public float ElapsedSeconds => _running ? Time.realtimeSinceStartup - _startedRealtime : 0f;
         public float WarnSeconds => _warnSeconds;
+        public bool IsRunning => _running;
 
         public void StartClock()
         {

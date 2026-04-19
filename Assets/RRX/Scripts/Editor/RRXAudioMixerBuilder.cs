@@ -1,3 +1,4 @@
+using System.Reflection;
 using RRX.Environment;
 using RRX.Runtime;
 using UnityEditor;
@@ -21,8 +22,15 @@ namespace RRX.Editor
             var mixer = AssetDatabase.LoadAssetAtPath<AudioMixer>(MixerPath);
             if (mixer == null)
             {
-                mixer = ScriptableObject.CreateInstance<AudioMixer>();
-                AssetDatabase.CreateAsset(mixer, MixerPath);
+                mixer = TryCreateMixerAsset(MixerPath);
+                if (mixer == null)
+                {
+                    Debug.LogWarning(
+                        "[RRX] Could not auto-create an Audio Mixer asset. Create one at Assets/RRX/Audio/RRX_Mixer.mixer " +
+                        "(Audio Mixer window → New Mixer), then run this menu item again.");
+                    return;
+                }
+
                 AssetDatabase.SaveAssets();
             }
 
@@ -49,6 +57,27 @@ namespace RRX.Editor
                 so.ApplyModifiedPropertiesWithoutUndo();
                 EditorUtility.SetDirty(comp);
             }
+        }
+
+        /// <summary>
+        /// <see cref="AudioMixer"/> is not a <see cref="ScriptableObject"/> for <c>CreateInstance</c>.
+        /// Unity exposes creation via internal <c>UnityEditor.Audio.AudioMixerController.CreateMixerControllerAtPath</c>.
+        /// </summary>
+        static AudioMixer TryCreateMixerAsset(string assetPath)
+        {
+            var editorAsm = typeof(AssetDatabase).Assembly;
+            var controllerType = editorAsm.GetType("UnityEditor.Audio.AudioMixerController");
+            var method = controllerType?.GetMethod(
+                "CreateMixerControllerAtPath",
+                BindingFlags.Public | BindingFlags.Static,
+                null,
+                new[] { typeof(string) },
+                null);
+            if (method == null)
+                return null;
+
+            var created = method.Invoke(null, new object[] { assetPath });
+            return created as AudioMixer;
         }
 
         static void EnsureFolder(string folderPath)
