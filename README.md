@@ -1,10 +1,75 @@
-# HackathonXR - Rewind Rescue XR (RRX)
+# Rewind Rescue XR (RRX)
 
-Unity XR mixed-reality training prototype for overdose-response simulation, including:
-- 7-step scenario state machine
-- patient visual progression (including apnea handling)
-- procedural audio feedback and ambience
-- world-space XR HUD and wrist objective panel
+Rewind Rescue XR is an immersive, rewindable mixed-reality emergency-response trainer built for rapid iteration and real-world training impact.
+
+At a systems level, the experience starts by configuring an XR rig, scenario graph, world-space interface, and a physically grounded plaza environment. The near play area is represented as a low-opacity, comfort-aware interaction zone so users can stay aware of real-world boundaries and avoid collisions, while farther distances render a busy public background with moving pedestrians and layered ambience. That contrast is intentional: immediate safety in the user radius, realistic external pressure in the periphery.
+
+This creates training conditions that simulate urgency without removing user control. Participants can practice decision-making, prioritize actions, hear escalating scene stress, and still rewind to previous checkpoints after mistakes to repeat steps under pressure until they become consistent.
+
+## How UI and Tracking Work
+
+The UI is headset-relative and user-tracked:
+- A floating HUD is parented to the XR camera and rendered in world space, so interface position remains spatially stable relative to the user.
+- HUD distance/height and crowd settings are adjustable in-app for different comfort/experience levels.
+- A wrist objective panel tracks live scenario state, hints, mistakes, and time pressure cues.
+- Split-panel visibility can be toggled by controller chord (`L2 + R2`) when no modal is open.
+
+## Core Mechanics (What to Do)
+
+Scenario flow is implemented as a strict 7-step state machine:
+1. Scene safety scan
+2. Check responsiveness
+3. Open airway
+4. Check breathing
+5. Call for help
+6. Administer Narcan
+7. Recovery position
+
+Mechanic highlights:
+- Correct hotspots/actions advance state.
+- Wrong sequencing is handled as failure escalation.
+- Rewind checkpoints let users roll back and retry.
+- Clock pressure and ambience escalation reinforce urgency.
+- Patient breathing/visual condition are state-driven (including apnea states).
+
+## Technical Documentation (Languages and Techniques)
+
+- **Language:** C#
+- **Engine:** Unity `2022.3.62f3`
+- **Target:** Android / Meta Quest 3
+- **XR stack:** OpenXR, XR Interaction Toolkit, Meta OpenXR integration
+- **Architecture:**
+  - `ScenarioRunner` finite-state control
+  - snapshot-driven patient presentation (`PatientVisualState`)
+  - runtime procedural animation + procedural audio synthesis
+  - editor automation for one-click scene generation
+  - world-space UI + XR input bindings
+  - checkpoint rewind for deliberate practice loops
+
+## Why This Helps Training
+
+The software is built to convert bystander hesitation into repeatable action:
+- immersive context improves realism and retention,
+- rewindability reduces fear of failure and supports mastery learning,
+- progressive pressure trains calm execution under stress,
+- spatial interaction mirrors real response behavior better than flat simulations.
+
+In short, it is designed to help turn bystanders into life-savers through immersive, repeatable, ethically grounded practice.
+
+## Product Positioning and Evaluation Focus
+
+This project is positioned for strong evaluation across social impact, technical execution, and user experience:
+- **High social relevance:** overdose-response training with practical public-health value.
+- **Responsible XR use:** safety-aware near-field design + stress simulation in controlled layers.
+- **Fast deployment:** one-command scene setup, procedural assets, and quick iteration cycles.
+- **Clear demo narrative:** problem, immersive intervention, measurable training loop (attempt -> fail -> rewind -> improve).
+
+Recommended presentation emphasis:
+1. Demonstrate real user flow in-headset within 2-3 minutes.
+2. Show one mistake path and rewind recovery path.
+3. Explain ethical/safety design choices in MR.
+4. Tie features directly to learning outcomes and behavior change.
+5. Show technical completeness (state machine, UI tracking, audio pressure, replayability).
 
 ## Project Specs
 
@@ -14,37 +79,6 @@ Unity XR mixed-reality training prototype for overdose-response simulation, incl
   - OpenXR
   - XR Interaction Toolkit
   - Meta OpenXR integration
-- Main scenario flow:
-  1. Scene safety scan
-  2. Check responsiveness
-  3. Open airway
-  4. Check breathing
-  5. Call for help
-  6. Administer Narcan
-  7. Recovery position
-
-## Key Gameplay/Systems
-
-- **Breathing mechanics**
-  - Breathing is driven by `PatientVisualState` snapshots from `ScenarioRunner`.
-  - `IsApnea` + normalized `BreathRate` are used for realistic no-breath states.
-  - Procedural torso bob and patient breath audio are both state-driven.
-
-- **Scenario correctness**
-  - Runner-based action/hotspot validation.
-  - Rewind checkpoints include clock state restoration.
-  - Debug hotkeys cover all scenario steps.
-
-- **UI/UX**
-  - Floating HUD with settings, scenario panel, training panel.
-  - Wrist panel objective + hint system and clock warning tinting.
-  - Main menu includes L2+R2 hint for split panel toggle.
-
-- **Audio**
-  - Procedural SFX bank (`ok`, `bad`, `recovered`, ambience beds, breathing loops).
-  - Recovery cue no longer double-plays with generic success cue.
-  - Crowd loop deduplication when emergency ambience system is present.
-  - Short ambience ducking on feedback events.
 
 ## Setup Instructions
 
