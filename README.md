@@ -1,6 +1,6 @@
 # Rewind Rescue XR (RRX)
 
-![Rewind Rescue XR](https://i.imgur.com/8DSqOpr.png)
+
 
 Rewind Rescue XR is an immersive, rewindable mixed-reality emergency-response trainer built for rapid iteration and real-world training impact.
 
@@ -16,16 +16,39 @@ The UI is headset-relative and user-tracked:
 - A wrist objective panel tracks live scenario state, hints, mistakes, and time pressure cues.
 - Split-panel visibility can be toggled by controller chord (`L2 + R2`) when no modal is open.
 
+## Photos of Menu/Settings:
+
+## Start Menu
+![Rewind Rescue XR](https://i.imgur.com/x3hAdw1.png)
+
+## Settings
+![Rewind Rescue XR](https://i.imgur.com/8DSqOpr.png)
+
+## Scenario
+![Rewind Rescue XR](https://i.imgur.com/lwuXlYH.png)
+
+## Ingame menu/settings
+![Rewind Rescue XR](https://i.imgur.com/WYxYTF1.png)
+
+## Training menu
+![Rewind Rescue XR](https://i.imgur.com/epYPGrI.png)
+
+
 ## Core Mechanics (What to Do)
 
-Scenario flow is implemented as a strict 7-step state machine:
+Scenario flow is implemented as a strict 7-step state machine with GamePlay Demo:
 1. Scene safety scan
 2. Check responsiveness
+![Rewind Rescue XR](https://i.imgur.com/yD45WXI.gif)
+
 3. Open airway
-4. Check breathing
-5. Call for help
-6. Administer Narcan
-7. Recovery position
+![Rewind Rescue XR](https://i.imgur.com/Ir2EbzZ.gif)
+4. Call for help -- By clicking on the iphone that is next to the body 
+5. Administer Narcan
+![Rewind Rescue XR](https://i.imgur.com/RGjsxn9.gif)
+
+6. Recovery position
+![Rewind Rescue XR](https://i.imgur.com/HNo9qrr.gif)
 
 Mechanic highlights:
 - Correct hotspots/actions advance state.
