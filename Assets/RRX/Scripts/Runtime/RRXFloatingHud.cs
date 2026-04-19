@@ -21,6 +21,11 @@ namespace RRX.UI
     [DisallowMultipleComponent]
     public sealed class RRXFloatingHud : MonoBehaviour
     {
+        const string PatientRootName = "RRX_Patient";
+        const string PrefHudForward = "rrx_hud_forward";
+        const string PrefHudDown = "rrx_hud_down";
+        const string PrefPatientSpawnDistance = "rrx_patient_spawn_distance";
+
         const float PanelOpacity = 0.2f;
         const float ButtonBackdropAlpha = 0.85f;
         const int CanvasRefPixels = 900;
@@ -34,6 +39,7 @@ namespace RRX.UI
 
         [SerializeField] float _forwardMeters = 2.24f;
         [SerializeField] float _downMeters = 0.05f;
+        [SerializeField] float _patientSpawnDistanceMeters = 1.35f;
 
         bool _hudBuilt;
         bool _canvasCameraAssigned;
@@ -85,18 +91,24 @@ namespace RRX.UI
         {
             if (!Application.isPlaying)
                 return;
-            if (PlayerPrefs.HasKey("rrx_hud_forward"))
-                _forwardMeters = Mathf.Clamp(PlayerPrefs.GetFloat("rrx_hud_forward"), 0.35f, 4f);
-            if (PlayerPrefs.HasKey("rrx_hud_down"))
-                _downMeters = Mathf.Clamp(PlayerPrefs.GetFloat("rrx_hud_down"), 0f, 0.45f);
+            if (PlayerPrefs.HasKey(PrefHudForward))
+                _forwardMeters = Mathf.Clamp(PlayerPrefs.GetFloat(PrefHudForward), 0.35f, 4f);
+            if (PlayerPrefs.HasKey(PrefHudDown))
+                _downMeters = Mathf.Clamp(PlayerPrefs.GetFloat(PrefHudDown), 0f, 0.45f);
+            if (PlayerPrefs.HasKey(PrefPatientSpawnDistance))
+            {
+                _patientSpawnDistanceMeters = Mathf.Clamp(
+                    PlayerPrefs.GetFloat(PrefPatientSpawnDistance), 0.8f, 3f);
+            }
         }
 
-        static void SaveHudPrefs(float forward, float down)
+        void SaveHudPrefs()
         {
             if (!Application.isPlaying)
                 return;
-            PlayerPrefs.SetFloat("rrx_hud_forward", forward);
-            PlayerPrefs.SetFloat("rrx_hud_down", down);
+            PlayerPrefs.SetFloat(PrefHudForward, _forwardMeters);
+            PlayerPrefs.SetFloat(PrefHudDown, _downMeters);
+            PlayerPrefs.SetFloat(PrefPatientSpawnDistance, _patientSpawnDistanceMeters);
         }
 
         void Reset()
@@ -402,7 +414,7 @@ namespace RRX.UI
                 {
                     _forwardMeters = x;
                     ApplyHudLocalPosition();
-                    SaveHudPrefs(_forwardMeters, _downMeters);
+                    SaveHudPrefs();
                 });
 
             AddNumericStepperRow(card.transform, "HUD height (down m)", 0f, 0.45f, 0.01f,
@@ -411,8 +423,18 @@ namespace RRX.UI
                 {
                     _downMeters = x;
                     ApplyHudLocalPosition();
-                    SaveHudPrefs(_forwardMeters, _downMeters);
+                    SaveHudPrefs();
                 });
+
+            AddNumericStepperRow(card.transform, "Patient spawn distance (m)", 0.8f, 3f, 0.05f,
+                () => _patientSpawnDistanceMeters,
+                x =>
+                {
+                    _patientSpawnDistanceMeters = x;
+                    SaveHudPrefs();
+                });
+
+            AddPlaceholderButton(card.transform, "Reposition patient in front", RepositionPatientInFront);
 
             AddNumericStepperRow(card.transform, "Crowd clearance (m)", 0.05f, 3f, 0.05f,
                 () => _mallCrowd != null ? _mallCrowd.PlayerExclusionRadiusMeters : 0.5f,
@@ -477,10 +499,44 @@ namespace RRX.UI
             le.minHeight = 44f;
             le.preferredHeight = 44f;
             var tmp = go.GetComponent<TextMeshProUGUI>();
-            tmp.text = "HUD placement, mall crowd visuals, LOD, personal space, and looping crowd ambience.";
+            tmp.text = "HUD placement, patient repositioning, mall crowd visuals, LOD, personal space, and looping crowd ambience.";
             tmp.fontSize = 18;
             tmp.alignment = TextAlignmentOptions.Center;
             tmp.color = new Color(0.85f, 0.88f, 0.92f, 0.88f);
+        }
+
+        void RepositionPatientInFront()
+        {
+            var patient = GameObject.Find(PatientRootName);
+            if (patient == null)
+            {
+                ShowToast("No patient found. Spawn one first, then reposition.");
+                return;
+            }
+
+            var origin = FindObjectOfType<XROrigin>();
+            Transform anchor = origin != null && origin.Camera != null
+                ? origin.Camera.transform
+                : Camera.main != null ? Camera.main.transform : null;
+
+            if (anchor == null)
+            {
+                ShowToast("No XR camera found for patient reposition.");
+                return;
+            }
+
+            Vector3 forwardFlat = anchor.forward;
+            forwardFlat.y = 0f;
+            if (forwardFlat.sqrMagnitude < 0.0001f)
+                forwardFlat = anchor.parent != null ? anchor.parent.forward : Vector3.forward;
+            forwardFlat.y = 0f;
+            forwardFlat.Normalize();
+
+            var target = anchor.position + forwardFlat * _patientSpawnDistanceMeters;
+            target.y = patient.transform.position.y;
+
+            patient.transform.SetPositionAndRotation(target, Quaternion.LookRotation(forwardFlat, Vector3.up));
+            ShowToast($"Patient moved in front ({_patientSpawnDistanceMeters:0.00}m).");
         }
 
         void BuildHelpOverlay(RectTransform root)

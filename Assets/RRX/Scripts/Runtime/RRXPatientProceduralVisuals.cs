@@ -8,6 +8,8 @@ namespace RRX.Runtime
     /// Drives blockout patient visuals from full state snapshots (no animator required).
     /// Adds seizure tremor when unconscious, greenish vomit tint at severe cyanosis,
     /// and a rolling rotation for recovery position.
+    /// Works with both the legacy single-mesh body and the detailed multi-primitive anatomy
+    /// produced by RRXPatientBuilder; skin tinting reaches all named skin-surface renderers.
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class RRXPatientProceduralVisuals : MonoBehaviour
@@ -122,22 +124,35 @@ namespace RRX.Runtime
             transform.localRotation = _rootBaseRotation;
         }
 
+        // Substrings that identify skin-coloured renderers in the detailed anatomy hierarchy.
+        // Checked against renderer.name (lower-case) via Contains — ordered from most to least common
+        // to short-circuit early. Only skin-coloured parts are included; shirt/pants/shoe parts are
+        // intentionally omitted so cyanosis tinting stays medically accurate.
+        static readonly string[] SkinSubstrings =
+        {
+            "skull", "jaw", "chin", "nosebridge", "nosetip", "nostril",
+            "mouth", "upperlip", "ear", "eyelid", "brow",
+            "neck", "shoulder", "elbow", "forearm", "wrist", "hand", "palm", "finger", "ankle"
+        };
+
         void CacheSkinRenderers()
         {
             _skinRenderers.Clear();
             _baseSkinColors.Clear();
 
-            foreach (var renderer in GetComponentsInChildren<Renderer>(true))
+            foreach (var r in GetComponentsInChildren<Renderer>(true))
             {
-                if (renderer == null)
-                    continue;
-                string lower = renderer.name.ToLowerInvariant();
-                if (!lower.Contains("head") && !lower.Contains("neck") && !lower.Contains("forearm") &&
-                    !lower.Contains("hand"))
-                    continue;
+                if (r == null) continue;
+                string lower = r.name.ToLowerInvariant();
+                bool isSkin = false;
+                foreach (var key in SkinSubstrings)
+                {
+                    if (lower.Contains(key)) { isSkin = true; break; }
+                }
+                if (!isSkin) continue;
 
-                _skinRenderers.Add(renderer);
-                _baseSkinColors.Add(renderer.sharedMaterial != null ? renderer.sharedMaterial.color : Color.white);
+                _skinRenderers.Add(r);
+                _baseSkinColors.Add(r.sharedMaterial != null ? r.sharedMaterial.color : Color.white);
             }
         }
 
