@@ -13,6 +13,14 @@ namespace RRX.Environment
     [DisallowMultipleComponent]
     public sealed class RRXMallCrowd : MonoBehaviour
     {
+        enum CrowdMode
+        {
+            Wander,
+            Rubberneck,
+            BackAway,
+            Scatter,
+        }
+
         [SerializeField] int _pedestrianCount = 14;
         [SerializeField] float _minRadiusFromCenter = 1.2f;
         [SerializeField] float _walkSpeedMin = 0.55f;
@@ -22,10 +30,19 @@ namespace RRX.Environment
         [SerializeField] float _hideDistanceMeters = 19f;
         [SerializeField] float _playerExclusionRadiusMeters = 0.5f;
 
+        [SerializeField] ScenarioRunner _runner;
+
         Transform _camera;
         Pedestrian[] _peds;
         Material _sharedBodyMat;
         AudioSource _ambience;
+
+        float _crowdAmbienceVolume = 0.4f;
+        bool _crowdAmbienceEnabled = true;
+        CrowdMode _mode = CrowdMode.Wander;
+        Vector3 _patientPos;
+        PatientPresenter _patientPresenter;
+
         static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
         static readonly int ColorId = Shader.PropertyToID("_Color");
 
@@ -83,6 +100,16 @@ namespace RRX.Environment
 
             _peds = new Pedestrian[Mathf.Max(0, _pedestrianCount)];
 
+            if (_runner == null)
+                _runner = FindObjectOfType<ScenarioRunner>();
+
+            if (_runner != null)
+                _runner.OnStateChanged.AddListener(OnScenarioStateChanged);
+            RefreshCrowdModeFromRunner();
+
+            if (_patientPresenter == null)
+                _patientPresenter = FindObjectOfType<PatientPresenter>();
+
             for (var i = 0; i < _peds.Length; i++)
             {
                 var root = new GameObject($"Pedestrian_{i + 1}");
@@ -119,6 +146,82 @@ namespace RRX.Environment
                     Speed = Random.Range(_walkSpeedMin, _walkSpeedMax),
                 };
             }
+
+            EnsureAmbienceClipAndPlay();
+        }
+
+        void OnDestroy()
+        {
+            if (_runner != null)
+                _runner.OnStateChanged.RemoveListener(OnScenarioStateChanged);
+        }
+
+        void OnScenarioStateChanged(ScenarioState state) => RefreshCrowdModeFromRunner();
+
+        void RefreshCrowdModeFromRunner()
+        {
+            if (_runner == null)
+            {
+                _mode = CrowdMode.Wander;
+                return;
+            }
+
+            _mode = ModeForScenarioState(_runner.CurrentState);
+        }
+
+        static CrowdMode ModeForScenarioState(ScenarioState state)
+        {
+            switch (state)
+            {
+                case ScenarioState.CriticalFailure:
+                    return CrowdMode.Scatter;
+                case ScenarioState.Recovery:
+                case ScenarioState.SceneSafety:
+                case ScenarioState.Arrival:
+                    return CrowdMode.Wander;
+                case ScenarioState.RecoveryPosition:
+                    return CrowdMode.BackAway;
+                default:
+                    return CrowdMode.Rubberneck;
+            }
+        }
+
+        void EnsureAmbienceClipAndPlay()
+        {
+            if (_ambience == null)
+                return;
+
+            ApplyCrowdAmbience();
+        }
+
+        void PersistCrowdAmbiencePrefs()
+        {
+            if (!Application.isPlaying)
+                return;
+            PlayerPrefs.SetFloat("rrx_crowd_amb_vol", _crowdAmbienceVolume);
+            PlayerPrefs.SetInt("rrx_crowd_amb_en", _crowdAmbienceEnabled ? 1 : 0);
+        }
+
+        void ApplyCrowdAmbience()
+        {
+            if (_ambience == null)
+                return;
+
+            if (!_crowdAmbienceEnabled)
+            {
+                _ambience.Stop();
+                _ambience.volume = 0f;
+                return;
+            }
+
+            var proc = FindObjectOfType<RRXProceduralAudio>();
+            if (proc != null && proc.ClipCrowdMurmur != null)
+                _ambience.clip = proc.ClipCrowdMurmur;
+
+            _ambience.loop = true;
+            _ambience.volume = _crowdAmbienceVolume;
+            if (_ambience.clip != null && !_ambience.isPlaying)
+                _ambience.Play();
         }
 
         void ApplyColor(Renderer r, Color c)
@@ -217,6 +320,10 @@ namespace RRX.Environment
         {
             if (_peds == null)
                 return;
+
+            if (_patientPresenter == null)
+                _patientPresenter = FindObjectOfType<PatientPresenter>();
+            _patientPos = _patientPresenter != null ? _patientPresenter.transform.position : Vector3.zero;
 
             if (_camera == null)
                 ResolveCamera();

@@ -64,6 +64,8 @@ namespace RRX.Runtime
 
         void Start()
         {
+            ApplyProceduralClips();
+
             _sceneStartTime = Time.time;
             _currentPhase = -1;
             SetPhase(0);
@@ -105,12 +107,19 @@ namespace RRX.Runtime
         {
             _audio = audio;
 
-            // Re-assign clips now that the audio component is available
-            if (_droneSrc != null)      _droneSrc.clip      = audio.ClipCrowdMurmur;
-            if (_sirenSrc != null)      _sirenSrc.clip      = audio.ClipSiren;
-            if (_gaspSrc != null)       _gaspSrc.clip       = audio.ClipGasp;
-            if (_heartbeatSrc != null)  _heartbeatSrc.clip  = audio.ClipHeartbeat;
-            if (_crowdSrc != null)      _crowdSrc.clip      = audio.ClipCrowdMurmur;
+            ApplyProceduralClips();
+        }
+
+        void ApplyProceduralClips()
+        {
+            if (_audio == null)
+                return;
+
+            if (_droneSrc != null) _droneSrc.clip = _audio.ClipDrone;
+            if (_sirenSrc != null) _sirenSrc.clip = _audio.ClipSiren;
+            if (_gaspSrc != null) _gaspSrc.clip = _audio.ClipGasp;
+            if (_heartbeatSrc != null) _heartbeatSrc.clip = _audio.ClipHeartbeat;
+            if (_crowdSrc != null) _crowdSrc.clip = _audio.ClipCrowdMurmur;
         }
 
         void OnStateChanged(ScenarioState state)
