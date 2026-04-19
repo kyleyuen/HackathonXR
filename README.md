@@ -49,6 +49,7 @@ Scenario flow is implemented as a strict 6-step state machine with GamePlay Demo
 4. Open airway
 
 ![Open airway](./readme-assets/gifs/Ir2EbzZ-readme.gif)
+
 6. Call for help -- By clicking on the iphone that is next to the body 
 7. Administer Narcan
 
