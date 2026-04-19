@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using TMPro;
+using RRX.Core;
 using RRX.Environment;
 using RRX.Runtime;
 using UnityEngine;
@@ -13,9 +14,9 @@ using UnityEngine.XR.Interaction.Toolkit.UI;
 namespace RRX.UI
 {
     /// <summary>
-    /// World-space HUD parented to the XR headset camera: main menu, split edge panels, settings (with live
-    /// crowd / HUD tweaks), help, scenario/training stubs, and tool slot messages. L2+R2 chord toggles split
-    /// visibility when no other overlay is open.
+    /// World-space HUD parented to the XR headset camera: main menu, split edge panels, settings (HUD + mall
+    /// crowd visuals and ambience), help, scenario status / reset, training tips, and tool slot messages.
+    /// L2+R2 chord toggles split visibility when no other overlay is open.
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class RRXFloatingHud : MonoBehaviour
@@ -52,6 +53,9 @@ namespace RRX.UI
         GameObject _trainingOverlay;
         GameObject _toastOverlay;
         TextMeshProUGUI _toastText;
+        TextMeshProUGUI _scenarioStatusText;
+        TextMeshProUGUI _scenarioDetailText;
+        ScenarioRunner _scenarioRunner;
 
         bool _splitMenuVisible = true;
         bool _bothTriggersHeldLast;
@@ -64,10 +68,35 @@ namespace RRX.UI
             if (_hudBuilt)
                 return;
 
+            LoadHudPrefs();
             EnsureEventSystem();
             BuildHud();
-            _mallCrowd = FindObjectOfType<RRXMallCrowd>();
+            _mallCrowd = FindMallCrowdAny();
             _hudBuilt = true;
+        }
+
+        static RRXMallCrowd FindMallCrowdAny()
+        {
+            var list = FindObjectsByType<RRXMallCrowd>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            return list != null && list.Length > 0 ? list[0] : null;
+        }
+
+        void LoadHudPrefs()
+        {
+            if (!Application.isPlaying)
+                return;
+            if (PlayerPrefs.HasKey("rrx_hud_forward"))
+                _forwardMeters = Mathf.Clamp(PlayerPrefs.GetFloat("rrx_hud_forward"), 0.35f, 4f);
+            if (PlayerPrefs.HasKey("rrx_hud_down"))
+                _downMeters = Mathf.Clamp(PlayerPrefs.GetFloat("rrx_hud_down"), 0f, 0.45f);
+        }
+
+        static void SaveHudPrefs(float forward, float down)
+        {
+            if (!Application.isPlaying)
+                return;
+            PlayerPrefs.SetFloat("rrx_hud_forward", forward);
+            PlayerPrefs.SetFloat("rrx_hud_down", down);
         }
 
         void Reset()
@@ -355,7 +384,7 @@ namespace RRX.UI
         {
             _settingsRefreshers.Clear();
             _settingsOverlay = CreateDimOverlay(root, "SettingsOverlay");
-            var card = CreateCenterCard(_settingsOverlay.transform, 560f, 500f);
+            var card = CreateCenterCard(_settingsOverlay.transform, 580f, 720f);
             var v = card.GetComponent<VerticalLayoutGroup>();
             v.spacing = 10f;
             v.padding = new RectOffset(20, 20, 16, 16);
@@ -373,6 +402,16 @@ namespace RRX.UI
                 {
                     _forwardMeters = x;
                     ApplyHudLocalPosition();
+                    SaveHudPrefs(_forwardMeters, _downMeters);
+                });
+
+            AddNumericStepperRow(card.transform, "HUD height (down m)", 0f, 0.45f, 0.01f,
+                () => _downMeters,
+                x =>
+                {
+                    _downMeters = x;
+                    ApplyHudLocalPosition();
+                    SaveHudPrefs(_forwardMeters, _downMeters);
                 });
 
             AddNumericStepperRow(card.transform, "Crowd clearance (m)", 0.05f, 3f, 0.05f,
@@ -402,6 +441,23 @@ namespace RRX.UI
                 },
                 () => _mallCrowd != null);
 
+            AddNumericStepperRow(card.transform, "Crowd ambience", 0f, 1f, 0.05f,
+                () => _mallCrowd != null ? _mallCrowd.CrowdAmbienceVolume : 0.4f,
+                x =>
+                {
+                    if (_mallCrowd != null)
+                        _mallCrowd.CrowdAmbienceVolume = x;
+                },
+                () => _mallCrowd != null);
+
+            AddToggleRow(card.transform, "Crowd sounds", () => _mallCrowd != null && _mallCrowd.CrowdAmbienceEnabled,
+                active =>
+                {
+                    if (_mallCrowd != null)
+                        _mallCrowd.CrowdAmbienceEnabled = active;
+                },
+                () => _mallCrowd != null);
+
             AddToggleRow(card.transform, "Mall crowd", () => _mallCrowd != null && _mallCrowd.gameObject.activeSelf,
                 active =>
                 {
@@ -421,7 +477,7 @@ namespace RRX.UI
             le.minHeight = 44f;
             le.preferredHeight = 44f;
             var tmp = go.GetComponent<TextMeshProUGUI>();
-            tmp.text = "Adjust HUD placement, mall crowd visibility, and LOD / personal space.";
+            tmp.text = "HUD placement, mall crowd visuals, LOD, personal space, and looping crowd ambience.";
             tmp.fontSize = 18;
             tmp.alignment = TextAlignmentOptions.Center;
             tmp.color = new Color(0.85f, 0.88f, 0.92f, 0.88f);
@@ -449,8 +505,9 @@ namespace RRX.UI
             tmp.text =
                 "• <b>Start</b> — opens menus + tools on the sides of your view.\n" +
                 "• <b>L2 + R2</b> (both triggers) — hide/show split panels when not aiming at them.\n" +
-                "• <b>Settings</b> — here or from the main menu: HUD distance, crowd on/off, clearance, LOD.\n" +
-                "• <b>Scenario / Training</b> — placeholders for authored sessions and modules.\n" +
+                "• <b>Settings</b> — HUD distance & height, crowd visuals, ambience level, sounds, clearance, LOD.\n" +
+                "• <b>Scenario</b> — view scenario state and reset the overdose training flow when a runner is present.\n" +
+                "• <b>Training</b> — quick drills and tips (toast messages) for practice between authored sessions.\n" +
                 "• <b>Exit</b> — quit play mode / build.";
             tmp.fontSize = 20;
             tmp.alignment = TextAlignmentOptions.TopLeft;
@@ -463,19 +520,101 @@ namespace RRX.UI
         void BuildScenarioOverlay(RectTransform root)
         {
             _scenarioOverlay = CreateDimOverlay(root, "ScenarioOverlay");
-            var card = CreateCenterCard(_scenarioOverlay.transform, 520f, 320f);
-            AddInfoCardContent(card.transform, "Scenario",
-                "Instructor-authored scenarios will appear here (session list, objectives, timers). Hook your scenario loader to this entry point.",
-                HideScenarioOverlay);
+            var card = CreateCenterCard(_scenarioOverlay.transform, 560f, 420f);
+            var v = card.GetComponent<VerticalLayoutGroup>();
+            if (v == null)
+                v = card.gameObject.AddComponent<VerticalLayoutGroup>();
+            v.spacing = 10f;
+            v.padding = new RectOffset(20, 20, 16, 16);
+            v.childAlignment = TextAnchor.UpperCenter;
+            v.childControlWidth = true;
+            v.childControlHeight = true;
+            v.childForceExpandWidth = true;
+
+            AddHeader(card.transform, "Scenario");
+            var statusGo = new GameObject("ScenarioStatus", typeof(RectTransform), typeof(TextMeshProUGUI), typeof(LayoutElement));
+            statusGo.transform.SetParent(card.transform, false);
+            statusGo.GetComponent<LayoutElement>().minHeight = 36f;
+            _scenarioStatusText = statusGo.GetComponent<TextMeshProUGUI>();
+            _scenarioStatusText.fontSize = 22;
+            _scenarioStatusText.alignment = TextAlignmentOptions.Center;
+            _scenarioStatusText.color = new Color(0.95f, 0.96f, 1f, 0.96f);
+
+            var detailGo = new GameObject("ScenarioDetail", typeof(RectTransform), typeof(TextMeshProUGUI), typeof(LayoutElement));
+            detailGo.transform.SetParent(card.transform, false);
+            var dle = detailGo.GetComponent<LayoutElement>();
+            dle.minHeight = 140f;
+            dle.flexibleHeight = 1f;
+            _scenarioDetailText = detailGo.GetComponent<TextMeshProUGUI>();
+            _scenarioDetailText.fontSize = 19;
+            _scenarioDetailText.alignment = TextAlignmentOptions.TopLeft;
+            _scenarioDetailText.color = new Color(0.88f, 0.91f, 0.95f, 0.94f);
+            _scenarioDetailText.enableWordWrapping = true;
+
+            var row = new GameObject("ScenarioActions", typeof(RectTransform), typeof(HorizontalLayoutGroup));
+            row.transform.SetParent(card.transform, false);
+            var h = row.GetComponent<HorizontalLayoutGroup>();
+            h.spacing = 12f;
+            h.childAlignment = TextAnchor.MiddleCenter;
+            h.childControlWidth = false;
+            h.childForceExpandWidth = false;
+            row.AddComponent<LayoutElement>().minHeight = 52f;
+
+            AddWideButton(row.transform, "Refresh", RefreshScenarioPanelUi);
+            AddWideButton(row.transform, "Reset scenario", OnScenarioResetClicked);
+
+            AddPlaceholderButton(card.transform, "Close", HideScenarioOverlay);
         }
 
         void BuildTrainingOverlay(RectTransform root)
         {
             _trainingOverlay = CreateDimOverlay(root, "TrainingOverlay");
-            var card = CreateCenterCard(_trainingOverlay.transform, 520f, 320f);
-            AddInfoCardContent(card.transform, "Training",
-                "Training modes (skills drills, guided tasks) will launch from here. Wire your training flow to this button.",
-                HideTrainingOverlay);
+            var card = CreateCenterCard(_trainingOverlay.transform, 560f, 400f);
+            var v = card.GetComponent<VerticalLayoutGroup>();
+            if (v == null)
+                v = card.gameObject.AddComponent<VerticalLayoutGroup>();
+            v.spacing = 10f;
+            v.padding = new RectOffset(20, 20, 16, 16);
+            v.childAlignment = TextAnchor.UpperCenter;
+            v.childControlWidth = true;
+            v.childControlHeight = true;
+            v.childForceExpandWidth = true;
+
+            AddHeader(card.transform, "Training");
+            var intro = new GameObject("TrainingIntro", typeof(RectTransform), typeof(TextMeshProUGUI), typeof(LayoutElement));
+            intro.transform.SetParent(card.transform, false);
+            intro.GetComponent<LayoutElement>().minHeight = 56f;
+            var introTmp = intro.GetComponent<TextMeshProUGUI>();
+            introTmp.text = "Short drills and reminders. Full modules can still be wired to these entry points.";
+            introTmp.fontSize = 19;
+            introTmp.alignment = TextAlignmentOptions.TopLeft;
+            introTmp.color = new Color(0.88f, 0.91f, 0.95f, 0.94f);
+            introTmp.enableWordWrapping = true;
+
+            AddPlaceholderButton(card.transform, "Hotspot flow review", OnTrainingHotspotReview);
+            AddPlaceholderButton(card.transform, "Rewind checkpoints", OnTrainingRewindTips);
+            AddPlaceholderButton(card.transform, "Time pressure (if enabled)", OnTrainingTimePressure);
+            AddPlaceholderButton(card.transform, "Close", HideTrainingOverlay);
+        }
+
+        static void AddWideButton(Transform parent, string label, UnityEngine.Events.UnityAction onClick)
+        {
+            var go = new GameObject(label + "_Btn", typeof(RectTransform), typeof(Image), typeof(Button), typeof(LayoutElement));
+            go.transform.SetParent(parent, false);
+            go.GetComponent<LayoutElement>().preferredWidth = 168f;
+            go.GetComponent<LayoutElement>().minHeight = 48f;
+            var img = go.GetComponent<Image>();
+            img.color = new Color(0.25f, 0.28f, 0.34f, ButtonBackdropAlpha);
+            var btn = go.GetComponent<Button>();
+            var txtGo = new GameObject("Text", typeof(RectTransform), typeof(TextMeshProUGUI));
+            txtGo.transform.SetParent(go.transform, false);
+            StretchFull(txtGo.GetComponent<RectTransform>());
+            var tmp = txtGo.GetComponent<TextMeshProUGUI>();
+            tmp.text = label;
+            tmp.fontSize = 20;
+            tmp.alignment = TextAlignmentOptions.Center;
+            tmp.color = Color.white;
+            btn.onClick.AddListener(onClick);
         }
 
         void BuildToastOverlay(RectTransform root)
@@ -816,7 +955,7 @@ namespace RRX.UI
 
         void ShowSettingsOverlay(bool returnToSplit)
         {
-            _mallCrowd = FindObjectOfType<RRXMallCrowd>();
+            _mallCrowd = FindMallCrowdAny();
             _settingsReturnToSplit = returnToSplit;
             if (returnToSplit)
             {
@@ -896,6 +1035,68 @@ namespace RRX.UI
             }
 
             _scenarioOverlay.SetActive(true);
+            RefreshScenarioPanelUi();
+        }
+
+        void ResolveScenarioRunner()
+        {
+            var list = FindObjectsByType<ScenarioRunner>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            _scenarioRunner = list != null && list.Length > 0 ? list[0] : null;
+        }
+
+        void RefreshScenarioPanelUi()
+        {
+            if (_scenarioStatusText == null || _scenarioDetailText == null)
+                return;
+
+            ResolveScenarioRunner();
+            if (_scenarioRunner == null)
+            {
+                _scenarioStatusText.text = "No scenario runner in this scene";
+                _scenarioDetailText.text =
+                    "Add a <b>ScenarioRunner</b> (with patient presenter / clock as in your demo) to drive the overdose flow. " +
+                    "Hotspots and wrist objectives read from that runner.";
+                return;
+            }
+
+            _scenarioStatusText.text = $"Current state: <b>{_scenarioRunner.CurrentState}</b>";
+            _scenarioDetailText.text =
+                $"Next hotspot: <b>{_scenarioRunner.NextRequiredHotspot}</b>\n" +
+                $"Next action: <b>{_scenarioRunner.NextRequiredAction}</b>\n" +
+                $"Failures: {_scenarioRunner.FailureCount}  •  Rewinds: {_scenarioRunner.RewindCount}\n\n" +
+                "Use the authored world hotspots to submit actions. <b>Reset scenario</b> returns to arrival and clears checkpoints.";
+        }
+
+        void OnScenarioResetClicked()
+        {
+            ResolveScenarioRunner();
+            if (_scenarioRunner == null)
+            {
+                ShowToast("No scenario runner found in the scene.");
+                return;
+            }
+
+            _scenarioRunner.ResetScenario();
+            RefreshScenarioPanelUi();
+            ShowToast("Scenario reset to arrival.");
+        }
+
+        void OnTrainingHotspotReview()
+        {
+            ShowToast(
+                "Hotspot flow: check responsiveness → call for help → administer naloxone → recovery. Follow the wrist objective and panel prompts.");
+        }
+
+        void OnTrainingRewindTips()
+        {
+            ShowToast(
+                "Rewind: use your scenario’s rewind binding to jump to the last good checkpoint after a mistake. Failures escalate visuals until critical failure.");
+        }
+
+        void OnTrainingTimePressure()
+        {
+            ShowToast(
+                "Time pressure: if the runner’s clock is enabled, watch for warnings and expiry. You can disable time pressure on the ScenarioRunner in the inspector.");
         }
 
         void HideScenarioOverlay()

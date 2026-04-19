@@ -1,4 +1,5 @@
 using RRX.Core;
+using RRX.Runtime;
 using UnityEngine;
 using Unity.XR.CoreUtils;
 
@@ -21,14 +22,10 @@ namespace RRX.Environment
         [SerializeField] float _hideDistanceMeters = 19f;
         [SerializeField] float _playerExclusionRadiusMeters = 0.5f;
 
-        enum CrowdMode { Wander, Rubberneck, BackAway, Scatter }
-        CrowdMode _mode = CrowdMode.Wander;
-        Vector3 _patientPos = Vector3.zero;
-        ScenarioRunner _runner;
-
         Transform _camera;
         Pedestrian[] _peds;
         Material _sharedBodyMat;
+        AudioSource _ambience;
         static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
         static readonly int ColorId = Shader.PropertyToID("_Color");
 
@@ -38,6 +35,37 @@ namespace RRX.Environment
             public Renderer[] Renderers;
             public Vector3 Target;
             public float Speed;
+        }
+
+        void Awake()
+        {
+            if (Application.isPlaying)
+            {
+                if (PlayerPrefs.HasKey("rrx_crowd_amb_vol"))
+                    _crowdAmbienceVolume = Mathf.Clamp01(PlayerPrefs.GetFloat("rrx_crowd_amb_vol"));
+                if (PlayerPrefs.HasKey("rrx_crowd_amb_en"))
+                    _crowdAmbienceEnabled = PlayerPrefs.GetInt("rrx_crowd_amb_en") != 0;
+            }
+
+            _ambience = GetComponent<AudioSource>();
+            if (_ambience == null)
+                _ambience = gameObject.AddComponent<AudioSource>();
+            _ambience.loop = true;
+            _ambience.playOnAwake = false;
+            _ambience.spatialBlend = 0f;
+            _ambience.dopplerLevel = 0f;
+            _ambience.priority = 196;
+        }
+
+        void OnEnable()
+        {
+            EnsureAmbienceClipAndPlay();
+        }
+
+        void OnDisable()
+        {
+            if (_ambience != null)
+                _ambience.Stop();
         }
 
         void Start()
@@ -90,104 +118,6 @@ namespace RRX.Environment
                     Target = RandomDiscPoint(minR, maxR, playerXZ, exR),
                     Speed = Random.Range(_walkSpeedMin, _walkSpeedMax),
                 };
-            }
-
-            // Subscribe to scenario runner for crowd reactions
-            _runner = FindObjectOfType<ScenarioRunner>();
-            if (_runner != null)
-            {
-                _runner.OnStateChanged.AddListener(OnScenarioStateChanged);
-                _runner.OnResetRequested += _ => SetMode(CrowdMode.Wander);
-            }
-
-            var patientGO = GameObject.Find("RRX_Patient");
-            if (patientGO != null)
-                _patientPos = patientGO.transform.position;
-        }
-
-        void OnDestroy()
-        {
-            if (_runner != null)
-            {
-                _runner.OnStateChanged.RemoveListener(OnScenarioStateChanged);
-            }
-        }
-
-        void OnScenarioStateChanged(ScenarioState state)
-        {
-            switch (state)
-            {
-                case ScenarioState.SceneSafety:
-                case ScenarioState.Arrival:
-                    SetMode(CrowdMode.Wander);
-                    break;
-                case ScenarioState.OpenAirway:
-                case ScenarioState.CheckBreathing:
-                case ScenarioState.CallForHelp:
-                    SetMode(CrowdMode.Rubberneck);
-                    break;
-                case ScenarioState.AdministerNarcan:
-                case ScenarioState.RecoveryPosition:
-                    SetMode(CrowdMode.BackAway);
-                    break;
-                case ScenarioState.CriticalFailure:
-                    SetMode(CrowdMode.Scatter);
-                    break;
-                case ScenarioState.Recovery:
-                    SetMode(CrowdMode.Wander);
-                    break;
-            }
-        }
-
-        void SetMode(CrowdMode mode)
-        {
-            _mode = mode;
-            if (_peds == null) return;
-
-            float maxR = Mathf.Max(0.5f, RRXPlayArea.RadiusMeters - 0.4f);
-            float minR = Mathf.Clamp(_minRadiusFromCenter, 0.2f, maxR * 0.95f);
-            var playerXZ = PlayerXZ();
-            var exR = EffectiveExclusionRadius(maxR);
-            var patientXZ = new Vector3(_patientPos.x, 0f, _patientPos.z);
-
-            for (int i = 0; i < _peds.Length; i++)
-            {
-                var p = _peds[i];
-                if (p.Root == null) continue;
-
-                switch (mode)
-                {
-                    case CrowdMode.Rubberneck:
-                        // Crowd drifts toward patient area to watch (ring at 2-3 m away)
-                        float angle = i * (Mathf.PI * 2f / _peds.Length);
-                        float dist  = Random.Range(1.8f, 3.0f);
-                        p.Target = patientXZ + new Vector3(Mathf.Cos(angle) * dist, 0f, Mathf.Sin(angle) * dist);
-                        p.Speed  = Random.Range(0.35f, 0.65f);
-                        break;
-
-                    case CrowdMode.BackAway:
-                        // Back away from patient — pick a point on the outer half of the plaza
-                        var away = (p.Root.position - _patientPos).normalized;
-                        away.y = 0f;
-                        float backR = Random.Range(maxR * 0.55f, maxR * 0.9f);
-                        p.Target = away * backR;
-                        p.Speed  = Random.Range(0.8f, 1.3f);
-                        break;
-
-                    case CrowdMode.Scatter:
-                        // Sprint to outer edge
-                        p.Target = RandomDiscPoint(maxR * 0.8f, maxR, playerXZ, exR);
-                        p.Speed  = Random.Range(2.0f, 3.5f);
-                        break;
-
-                    case CrowdMode.Wander:
-                    default:
-                        p.Target = RandomDiscPoint(minR, maxR, playerXZ, exR);
-                        p.Speed  = Random.Range(_walkSpeedMin, _walkSpeedMax);
-                        break;
-                }
-
-                _peds[i] = p;
             }
         }
 
@@ -417,6 +347,28 @@ namespace RRX.Environment
         {
             get => _hideDistanceMeters;
             set => _hideDistanceMeters = Mathf.Max(_showDistanceMeters + 0.25f, value);
+        }
+
+        public bool CrowdAmbienceEnabled
+        {
+            get => _crowdAmbienceEnabled;
+            set
+            {
+                _crowdAmbienceEnabled = value;
+                PersistCrowdAmbiencePrefs();
+                ApplyCrowdAmbience();
+            }
+        }
+
+        public float CrowdAmbienceVolume
+        {
+            get => _crowdAmbienceVolume;
+            set
+            {
+                _crowdAmbienceVolume = Mathf.Clamp01(value);
+                PersistCrowdAmbiencePrefs();
+                ApplyCrowdAmbience();
+            }
         }
     }
 }
