@@ -684,32 +684,8 @@ namespace RRX.Editor
             audioRoot.transform.SetParent(parent, false);
             Undo.RegisterCreatedObjectUndo(audioRoot, "Plaza Audio");
 
-            var bed = new GameObject("Ambience_MallBed");
-            bed.transform.SetParent(audioRoot.transform, false);
-            bed.transform.localPosition = Vector3.zero;
-            Undo.RegisterCreatedObjectUndo(bed, "Ambience Mall Bed");
-
-            var srcBed = Undo.AddComponent<AudioSource>(bed);
-            srcBed.loop = true;
-            srcBed.playOnAwake = false;
-            srcBed.spatialBlend = 0f;
-            srcBed.volume = 0.22f;
-
-            var mech = new GameObject("Ambience_Mechanical");
-            mech.transform.SetParent(audioRoot.transform, false);
-            mech.transform.localPosition = new Vector3(R * 0.75f, FloorToFloor * 1.5f, -R * 0.55f);
-            Undo.RegisterCreatedObjectUndo(mech, "Ambience Mechanical");
-
-            var srcMech = Undo.AddComponent<AudioSource>(mech);
-            srcMech.loop = true;
-            srcMech.playOnAwake = false;
-            srcMech.spatialBlend = 1f;
-            srcMech.minDistance = 2f;
-            srcMech.maxDistance = 22f;
-            srcMech.rolloffMode = AudioRolloffMode.Linear;
-            srcMech.volume = 0.18f;
-
-            // Optional ambience: clips can be assigned later under Assets/RRX/Audio — no warning by default.
+            // Ambience is provided by RRX_Ambience runtime systems.
+            // Keep only this marker object so blockout generation does not create empty AudioSources.
         }
 
         static void ClearEnvironmentChildren(Transform root)

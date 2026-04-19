@@ -1,6 +1,7 @@
 using RRX.Core;
 using RRX.Runtime;
 using UnityEngine;
+using UnityEngine.Audio;
 using Unity.XR.CoreUtils;
 
 namespace RRX.Environment
@@ -31,6 +32,7 @@ namespace RRX.Environment
         [SerializeField] float _playerExclusionRadiusMeters = 0.5f;
 
         [SerializeField] ScenarioRunner _runner;
+        [SerializeField] AudioMixerGroup _ambienceMixerGroup;
 
         Transform _camera;
         Pedestrian[] _peds;
@@ -62,6 +64,12 @@ namespace RRX.Environment
                     _crowdAmbienceVolume = Mathf.Clamp01(PlayerPrefs.GetFloat("rrx_crowd_amb_vol"));
                 if (PlayerPrefs.HasKey("rrx_crowd_amb_en"))
                     _crowdAmbienceEnabled = PlayerPrefs.GetInt("rrx_crowd_amb_en") != 0;
+                if (PlayerPrefs.HasKey("rrx_crowd_clear"))
+                    _playerExclusionRadiusMeters = Mathf.Clamp(PlayerPrefs.GetFloat("rrx_crowd_clear"), 0.05f, 10f);
+                if (PlayerPrefs.HasKey("rrx_crowd_show_lod"))
+                    _showDistanceMeters = Mathf.Max(1f, PlayerPrefs.GetFloat("rrx_crowd_show_lod"));
+                if (PlayerPrefs.HasKey("rrx_crowd_hide_lod"))
+                    _hideDistanceMeters = Mathf.Max(_showDistanceMeters + 0.25f, PlayerPrefs.GetFloat("rrx_crowd_hide_lod"));
             }
 
             _ambience = GetComponent<AudioSource>();
@@ -69,9 +77,14 @@ namespace RRX.Environment
                 _ambience = gameObject.AddComponent<AudioSource>();
             _ambience.loop = true;
             _ambience.playOnAwake = false;
-            _ambience.spatialBlend = 0f;
+            _ambience.spatialBlend = 0.35f;
             _ambience.dopplerLevel = 0f;
-            _ambience.priority = 196;
+            _ambience.minDistance = 2f;
+            _ambience.maxDistance = 12f;
+            _ambience.rolloffMode = AudioRolloffMode.Linear;
+            _ambience.priority = 128;
+            if (_ambienceMixerGroup != null)
+                _ambience.outputAudioMixerGroup = _ambienceMixerGroup;
         }
 
         void OnEnable()
@@ -200,6 +213,9 @@ namespace RRX.Environment
                 return;
             PlayerPrefs.SetFloat("rrx_crowd_amb_vol", _crowdAmbienceVolume);
             PlayerPrefs.SetInt("rrx_crowd_amb_en", _crowdAmbienceEnabled ? 1 : 0);
+            PlayerPrefs.SetFloat("rrx_crowd_clear", _playerExclusionRadiusMeters);
+            PlayerPrefs.SetFloat("rrx_crowd_show_lod", _showDistanceMeters);
+            PlayerPrefs.SetFloat("rrx_crowd_hide_lod", _hideDistanceMeters);
         }
 
         void ApplyCrowdAmbience()
@@ -215,6 +231,12 @@ namespace RRX.Environment
             }
 
             var proc = FindObjectOfType<RRXProceduralAudio>();
+            if (FindObjectOfType<RRXEmergencyAmbience>() != null)
+            {
+                _ambience.Stop();
+                _ambience.volume = 0f;
+                return;
+            }
             if (proc != null && proc.ClipCrowdMurmur != null)
                 _ambience.clip = proc.ClipCrowdMurmur;
 
@@ -436,7 +458,11 @@ namespace RRX.Environment
         public float PlayerExclusionRadiusMeters
         {
             get => _playerExclusionRadiusMeters;
-            set => _playerExclusionRadiusMeters = Mathf.Clamp(value, 0.05f, 10f);
+            set
+            {
+                _playerExclusionRadiusMeters = Mathf.Clamp(value, 0.05f, 10f);
+                PersistCrowdAmbiencePrefs();
+            }
         }
 
         public float CrowdShowDistanceMeters
@@ -447,13 +473,18 @@ namespace RRX.Environment
                 _showDistanceMeters = Mathf.Max(1f, value);
                 if (_hideDistanceMeters < _showDistanceMeters + 0.25f)
                     _hideDistanceMeters = _showDistanceMeters + 0.25f;
+                PersistCrowdAmbiencePrefs();
             }
         }
 
         public float CrowdHideDistanceMeters
         {
             get => _hideDistanceMeters;
-            set => _hideDistanceMeters = Mathf.Max(_showDistanceMeters + 0.25f, value);
+            set
+            {
+                _hideDistanceMeters = Mathf.Max(_showDistanceMeters + 0.25f, value);
+                PersistCrowdAmbiencePrefs();
+            }
         }
 
         public bool CrowdAmbienceEnabled

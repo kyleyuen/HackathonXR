@@ -12,6 +12,34 @@ namespace RRX.Interactions
     {
         [SerializeField] ScenarioRunner _runner;
 
+        void HandleNumberedAction(int number)
+        {
+            switch (number)
+            {
+                case 1:
+                    Submit(ScenarioAction.ScanScene);
+                    break;
+                case 2:
+                    Submit(ScenarioAction.CheckResponsiveness);
+                    break;
+                case 3:
+                    Submit(ScenarioAction.OpenAirway);
+                    break;
+                case 4:
+                    Submit(ScenarioAction.CheckBreathing);
+                    break;
+                case 5:
+                    Submit(ScenarioAction.Call911);
+                    break;
+                case 6:
+                    Submit(ScenarioAction.AdministerNarcan);
+                    break;
+                case 7:
+                    Submit(ScenarioAction.RecoveryPosition);
+                    break;
+            }
+        }
+
         void Submit(ScenarioAction action)
         {
             if (_runner == null) return;
@@ -31,20 +59,36 @@ namespace RRX.Interactions
             var kb = Keyboard.current;
             if (kb == null) return;
             if (kb.digit1Key.wasPressedThisFrame)
-                Submit(ScenarioAction.CheckResponsiveness);
+                HandleNumberedAction(1);
             if (kb.digit2Key.wasPressedThisFrame)
-                Submit(ScenarioAction.Call911);
+                HandleNumberedAction(2);
             if (kb.digit3Key.wasPressedThisFrame)
-                Submit(ScenarioAction.AdministerNarcan);
+                HandleNumberedAction(3);
+            if (kb.digit4Key.wasPressedThisFrame)
+                HandleNumberedAction(4);
+            if (kb.digit5Key.wasPressedThisFrame)
+                HandleNumberedAction(5);
+            if (kb.digit6Key.wasPressedThisFrame)
+                HandleNumberedAction(6);
+            if (kb.digit7Key.wasPressedThisFrame)
+                HandleNumberedAction(7);
             if (kb.rKey.wasPressedThisFrame)
                 _runner.RewindPreviousCheckpoint();
 #else
             if (Input.GetKeyDown(KeyCode.Alpha1))
-                Submit(ScenarioAction.CheckResponsiveness);
+                HandleNumberedAction(1);
             if (Input.GetKeyDown(KeyCode.Alpha2))
-                Submit(ScenarioAction.Call911);
+                HandleNumberedAction(2);
             if (Input.GetKeyDown(KeyCode.Alpha3))
-                Submit(ScenarioAction.AdministerNarcan);
+                HandleNumberedAction(3);
+            if (Input.GetKeyDown(KeyCode.Alpha4))
+                HandleNumberedAction(4);
+            if (Input.GetKeyDown(KeyCode.Alpha5))
+                HandleNumberedAction(5);
+            if (Input.GetKeyDown(KeyCode.Alpha6))
+                HandleNumberedAction(6);
+            if (Input.GetKeyDown(KeyCode.Alpha7))
+                HandleNumberedAction(7);
             if (Input.GetKeyDown(KeyCode.R))
                 _runner.RewindPreviousCheckpoint();
 #endif

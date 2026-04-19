@@ -19,8 +19,6 @@ namespace RRX.UI
         [SerializeField] Component _call;
         [SerializeField] Component _narcan;
         [SerializeField] Component _rewind;
-        [SerializeField] Component _step;
-        [SerializeField] Component _hint;
 
         void Awake()
         {
@@ -61,7 +59,7 @@ namespace RRX.UI
                 return;
             var submission = new ScenarioActionSubmission(
                 action,
-                ScenarioHotspotId.WristUi,
+                ScenarioHotspotId.None,
                 null,
                 Time.realtimeSinceStartup);
             _runner.TrySubmit(submission, out _);

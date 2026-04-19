@@ -372,11 +372,11 @@ namespace RRX.UI
             }
             else
             {
-                AddPlaceholderButton(go.transform, "Tool A", OnToolAClicked);
-                AddPlaceholderButton(go.transform, "Tool B", OnToolBClicked);
+                AddPlaceholderButton(go.transform, "Demo utility slot 1", OnToolAClicked);
+                AddPlaceholderButton(go.transform, "Demo utility slot 2", OnToolBClicked);
                 AddSectionLabel(go.transform, "Inventory");
-                AddPlaceholderButton(go.transform, "Slot 1 (empty)", OnSlot1Clicked);
-                AddPlaceholderButton(go.transform, "Slot 2 (empty)", OnSlot2Clicked);
+                AddPlaceholderButton(go.transform, "Demo inventory slot 1", OnSlot1Clicked);
+                AddPlaceholderButton(go.transform, "Demo inventory slot 2", OnSlot2Clicked);
                 AddPlaceholderButton(go.transform, "Back to menu", OnBackToMenuClicked);
             }
 
@@ -386,6 +386,7 @@ namespace RRX.UI
         void BuildMainMenu(Transform parent)
         {
             AddHeader(parent, "RRX");
+            AddSectionLabel(parent, "Tip: L2 + R2 toggles side panels");
             AddPlaceholderButton(parent, "Start", OnStartClicked);
             AddPlaceholderButton(parent, "Settings", OnMainMenuSettingsClicked);
             AddPlaceholderButton(parent, "Help", OnHelpClicked);
@@ -1092,6 +1093,7 @@ namespace RRX.UI
 
             _scenarioOverlay.SetActive(true);
             RefreshScenarioPanelUi();
+            SubscribeScenarioOverlayLiveUpdates();
         }
 
         void ResolveScenarioRunner()
@@ -1134,13 +1136,13 @@ namespace RRX.UI
 
             _scenarioRunner.ResetScenario();
             RefreshScenarioPanelUi();
-            ShowToast("Scenario reset to arrival.");
+            ShowToast("Scenario reset to scene safety.");
         }
 
         void OnTrainingHotspotReview()
         {
             ShowToast(
-                "Hotspot flow: check responsiveness → call for help → administer naloxone → recovery. Follow the wrist objective and panel prompts.");
+                "Hotspot flow: scene safety scan → check response → open airway → check breathing → call for help → administer naloxone → recovery position.");
         }
 
         void OnTrainingRewindTips()
@@ -1157,6 +1159,7 @@ namespace RRX.UI
 
         void HideScenarioOverlay()
         {
+            UnsubscribeScenarioOverlayLiveUpdates();
             _scenarioOverlay.SetActive(false);
             if (_splitPanel != null)
                 _splitPanel.SetActive(true);
@@ -1180,6 +1183,25 @@ namespace RRX.UI
             _trainingOverlay.SetActive(true);
         }
 
+        void SubscribeScenarioOverlayLiveUpdates()
+        {
+            ResolveScenarioRunner();
+            if (_scenarioRunner != null)
+                _scenarioRunner.OnStateChanged.AddListener(OnScenarioRunnerStateChangedForOverlay);
+        }
+
+        void UnsubscribeScenarioOverlayLiveUpdates()
+        {
+            if (_scenarioRunner != null)
+                _scenarioRunner.OnStateChanged.RemoveListener(OnScenarioRunnerStateChangedForOverlay);
+        }
+
+        void OnScenarioRunnerStateChangedForOverlay(ScenarioState _)
+        {
+            if (_scenarioOverlay != null && _scenarioOverlay.activeSelf)
+                RefreshScenarioPanelUi();
+        }
+
         void HideTrainingOverlay()
         {
             _trainingOverlay.SetActive(false);
@@ -1194,22 +1216,22 @@ namespace RRX.UI
 
         void OnToolAClicked()
         {
-            ShowToast("Tool A — measurement / pointer utility (demo). Bind your interaction here.");
+            ShowToast("Demo utility slot 1 is not wired in this build.");
         }
 
         void OnToolBClicked()
         {
-            ShowToast("Tool B — secondary utility slot (demo). Assign actions in code or prefab.");
+            ShowToast("Demo utility slot 2 is not wired in this build.");
         }
 
         void OnSlot1Clicked()
         {
-            ShowToast("Inventory slot 1 is empty. Pick up items in a scenario to fill slots.");
+            ShowToast("Demo inventory slot 1 has no item assigned.");
         }
 
         void OnSlot2Clicked()
         {
-            ShowToast("Inventory slot 2 is empty.");
+            ShowToast("Demo inventory slot 2 has no item assigned.");
         }
 
         void ShowToast(string message)

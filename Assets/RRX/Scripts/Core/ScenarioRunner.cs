@@ -203,6 +203,11 @@ namespace RRX.Core
             _lastAcceptedAction = ScenarioAction.None;
             _lastAcceptedRealtime = -1f;
             _lastSubmitRealtime = -1f;
+            if (_clock != null && _timePressureEnabled)
+            {
+                _clock.SetElapsedSeconds(cp.ClockElapsedSeconds);
+                _clockStarted = true;
+            }
 
             ApplyPatientSnapshot(_patientVisual);
             _snapshots.TrimAfter(index);
@@ -320,6 +325,7 @@ namespace RRX.Core
                 NarcanUsed = _narcanUsed,
                 FailureCount = _failureCount,
                 ScenarioTimeSeconds = Time.time - _scenarioStartTime,
+                ClockElapsedSeconds = _clock != null && _clockStarted ? _clock.ElapsedSeconds : 0f,
                 RewindGeneration = _rewindCount
             };
         }

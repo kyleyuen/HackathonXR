@@ -90,9 +90,10 @@ namespace RRX.Editor
             DisableStarterTeleportInteractors();
             EnsureXrBootstrapOnRig();
             EnsureFloorTrackingForRoomScale();
+            EnsureScenarioGraph();
+            RRXAudioMixerBuilder.EnsureMixerAndWireScene();
             RRXCubeBlockoutMenu.RunBlockoutGeneration();
             EnsureFloatingHud();
-            EnsureMallCrowd();
             EnsureXrUiEventSystemForControllers();
             EnsureRayInteractorManagersLinked();
             EnsureInteractorLineVisualsVisible();
@@ -104,7 +105,29 @@ namespace RRX.Editor
             RRXInteractionsBuilder.BindTriggerHotspots();
             RRXWristPanelBuilder.SpawnOrRebuild();
             RRXScenarioFeedbackBuilder.SpawnOrRebuild();
+            EnsureMallCrowd();
             RRXAmbienceBuilder.SpawnOrRebuild();
+            RRXAudioMixerBuilder.EnsureMixerAndWireScene();
+        }
+
+        static void EnsureScenarioGraph()
+        {
+            if (Object.FindObjectOfType<ScenarioRunner>() != null)
+                return;
+
+            var root = new GameObject("RRX_Scenario");
+            Undo.RegisterCreatedObjectUndo(root, "RRX Scenario");
+            var clock = Undo.AddComponent<ScenarioClock>(root);
+            var runner = Undo.AddComponent<ScenarioRunner>(root);
+
+            var so = new SerializedObject(runner);
+            var clockProp = so.FindProperty("_clock");
+            if (clockProp != null)
+            {
+                clockProp.objectReferenceValue = clock;
+                so.ApplyModifiedPropertiesWithoutUndo();
+            }
+            EditorUtility.SetDirty(runner);
         }
 
         static void EnsureXrBootstrapOnRig()

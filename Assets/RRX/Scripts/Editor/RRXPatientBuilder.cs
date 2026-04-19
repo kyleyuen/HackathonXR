@@ -85,9 +85,13 @@ namespace RRX.Editor
             Undo.RegisterCreatedObjectUndo(presenter, "RRX Patient Presenter");
             var procedural = root.AddComponent<RRXPatientProceduralVisuals>();
             Undo.RegisterCreatedObjectUndo(procedural, "RRX Patient Procedural Visuals");
+            var breathAudio = root.AddComponent<RRXPatientBreathAudio>();
+            Undo.RegisterCreatedObjectUndo(breathAudio, "RRX Patient Breath Audio");
 
             var runner = Object.FindObjectOfType<ScenarioRunner>();
             WirePresenterToRunner(runner, presenter);
+            SetObjectReferenceField(procedural, "_runner", runner);
+            SetObjectReferenceField(breathAudio, "_runner", runner);
 
             // ── hotspots ─────────────────────────────────────────────────────
             // SceneScan: invisible discovery zone that covers the whole patient
@@ -557,6 +561,19 @@ namespace RRX.Editor
             prop.objectReferenceValue = presenter;
             so.ApplyModifiedProperties();
             EditorUtility.SetDirty(runner);
+        }
+
+        static void SetObjectReferenceField(Object target, string fieldName, Object value)
+        {
+            if (target == null)
+                return;
+            var so = new SerializedObject(target);
+            var prop = so.FindProperty(fieldName);
+            if (prop == null)
+                return;
+            prop.objectReferenceValue = value;
+            so.ApplyModifiedPropertiesWithoutUndo();
+            EditorUtility.SetDirty(target);
         }
 
         static void ApplyMat(GameObject go, Material mat)

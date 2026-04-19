@@ -3,6 +3,7 @@ using UnityEngine;
 namespace RRX.Runtime
 {
     /// <summary>Generates tiny runtime clips so the scenario has SFX without imported assets.</summary>
+    [DefaultExecutionOrder(-100)]
     [DisallowMultipleComponent]
     public sealed class RRXProceduralAudio : MonoBehaviour
     {
@@ -17,6 +18,8 @@ namespace RRX.Runtime
         public AudioClip ClipSiren { get; private set; }
         public AudioClip ClipGasp { get; private set; }
         public AudioClip ClipHeartbeat { get; private set; }
+        public AudioClip ClipBreathLabored { get; private set; }
+        public AudioClip ClipBreathNormal { get; private set; }
 
         void Awake()
         {
@@ -29,6 +32,8 @@ namespace RRX.Runtime
             ClipSiren = CreateSirenLoop("RRX_Clip_Siren", 3f);
             ClipGasp = CreateGaspLoop("RRX_Clip_Gasp", 2f);
             ClipHeartbeat = CreateHeartbeatLoop("RRX_Clip_Heartbeat", 2f);
+            ClipBreathLabored = CreateBreathLoop("RRX_Clip_BreathLabored", 2.8f, 0.38f, 0.10f);
+            ClipBreathNormal = CreateBreathLoop("RRX_Clip_BreathNormal", 1.8f, 0.22f, 0.05f);
         }
 
         AudioClip CreateTone(string name, float frequency, float duration, bool square)
@@ -164,6 +169,28 @@ namespace RRX.Runtime
                 float thump = (lub + dub * 0.65f) * 0.45f;
                 float body = Mathf.Sin(2f * Mathf.PI * 42f * t) * thump * 0.25f;
                 data[i] = Mathf.Clamp(thump + body, -1f, 1f);
+            }
+
+            var clip = AudioClip.Create(name, samples, 1, _sampleRate, false);
+            clip.SetData(data, 0);
+            return clip;
+        }
+
+        AudioClip CreateBreathLoop(string name, float duration, float cycleGain, float noiseGain)
+        {
+            int samples = Mathf.Max(1, Mathf.RoundToInt(duration * _sampleRate));
+            var data = new float[samples];
+            float smoothedNoise = 0f;
+            for (int i = 0; i < samples; i++)
+            {
+                float t = i / (float)_sampleRate;
+                float cycle = Mathf.Repeat(t / duration, 1f);
+                float inhale = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(cycle * 2f));
+                float exhale = Mathf.SmoothStep(1f, 0f, Mathf.Clamp01((cycle - 0.5f) * 2f));
+                float env = Mathf.Max(inhale, exhale);
+                float body = Mathf.Sin(2f * Mathf.PI * 160f * t) * cycleGain * env;
+                smoothedNoise = smoothedNoise * 0.96f + Random.Range(-1f, 1f) * 0.14f;
+                data[i] = Mathf.Clamp(body + smoothedNoise * noiseGain * env, -1f, 1f);
             }
 
             var clip = AudioClip.Create(name, samples, 1, _sampleRate, false);

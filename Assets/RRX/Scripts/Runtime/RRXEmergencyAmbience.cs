@@ -1,5 +1,6 @@
 using RRX.Core;
 using UnityEngine;
+using UnityEngine.Audio;
 
 namespace RRX.Runtime
 {
@@ -15,6 +16,7 @@ namespace RRX.Runtime
     {
         [SerializeField] ScenarioRunner _runner;
         [SerializeField] RRXProceduralAudio _audio;
+        [SerializeField] AudioMixerGroup _ambienceMixerGroup;
 
         AudioSource _droneSrc;
         AudioSource _sirenSrc;
@@ -26,6 +28,7 @@ namespace RRX.Runtime
         int _currentPhase;
         int _stepsCompleted;
         float _sceneStartTime;
+        float _duckUntil;
 
         static readonly float[] SirenVols  = { 0.04f, 0.18f, 0.30f, 0.45f };
         static readonly float[] CrowdVols  = { 0.00f, 0.12f, 0.20f, 0.32f };
@@ -51,6 +54,7 @@ namespace RRX.Runtime
                 _runner.OnStateChanged.AddListener(OnStateChanged);
                 _runner.OnResetRequested += OnReset;
             }
+            RRXScenarioFeedback.FeedbackPlayed += OnFeedbackPlayed;
         }
 
         void OnDisable()
@@ -60,6 +64,7 @@ namespace RRX.Runtime
                 _runner.OnStateChanged.RemoveListener(OnStateChanged);
                 _runner.OnResetRequested -= OnReset;
             }
+            RRXScenarioFeedback.FeedbackPlayed -= OnFeedbackPlayed;
         }
 
         void Start()
@@ -175,12 +180,13 @@ namespace RRX.Runtime
         {
             int p = _currentPhase;
             float dt = Time.deltaTime * 1.5f; // blending speed
+            float duck = Time.time < _duckUntil ? 0.42f : 1f;
 
-            if (_droneSrc != null)      _droneSrc.volume      = Mathf.Lerp(_droneSrc.volume,      DroneVols[p], dt);
-            if (_sirenSrc != null)      _sirenSrc.volume      = Mathf.Lerp(_sirenSrc.volume,      SirenVols[p], dt);
-            if (_crowdSrc != null)      _crowdSrc.volume      = Mathf.Lerp(_crowdSrc.volume,      CrowdVols[p], dt);
-            if (_gaspSrc != null)       _gaspSrc.volume       = Mathf.Lerp(_gaspSrc.volume,       GaspVols[p],  dt);
-            if (_heartbeatSrc != null)  _heartbeatSrc.volume  = Mathf.Lerp(_heartbeatSrc.volume,  HbVols[p],    dt);
+            if (_droneSrc != null)      _droneSrc.volume      = Mathf.Lerp(_droneSrc.volume,      DroneVols[p] * duck, dt);
+            if (_sirenSrc != null)      _sirenSrc.volume      = Mathf.Lerp(_sirenSrc.volume,      SirenVols[p] * duck, dt);
+            if (_crowdSrc != null)      _crowdSrc.volume      = Mathf.Lerp(_crowdSrc.volume,      CrowdVols[p] * duck, dt);
+            if (_gaspSrc != null)       _gaspSrc.volume       = Mathf.Lerp(_gaspSrc.volume,       GaspVols[p] * duck,  dt);
+            if (_heartbeatSrc != null)  _heartbeatSrc.volume  = Mathf.Lerp(_heartbeatSrc.volume,  HbVols[p] * duck,    dt);
         }
 
         void AnimateLight()
@@ -233,7 +239,14 @@ namespace RRX.Runtime
             src.rolloffMode = AudioRolloffMode.Linear;
             src.minDistance = 1f;
             src.maxDistance = 20f;
+            if (_ambienceMixerGroup != null)
+                src.outputAudioMixerGroup = _ambienceMixerGroup;
             return src;
+        }
+
+        void OnFeedbackPlayed(float durationSeconds)
+        {
+            _duckUntil = Mathf.Max(_duckUntil, Time.time + Mathf.Max(0.05f, durationSeconds));
         }
 
         void CreateEmergencyLight()

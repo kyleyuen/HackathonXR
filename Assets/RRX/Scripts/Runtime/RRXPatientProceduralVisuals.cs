@@ -18,6 +18,7 @@ namespace RRX.Runtime
         [SerializeField] Transform _torso;
         [SerializeField] Transform _head;
         [SerializeField] float _snapshotLerpSeconds = 0.4f;
+        [SerializeField] bool _enableApneaGasp = true;
 
         readonly List<Renderer> _skinRenderers = new List<Renderer>();
         readonly List<Color> _baseSkinColors = new List<Color>();
@@ -37,6 +38,7 @@ namespace RRX.Runtime
         // Recovery roll
         float _rollAngleCurrent;
         float _rollAngleTarget;
+        bool _hasReceivedSnapshot;
 
         void Awake()
         {
@@ -67,6 +69,7 @@ namespace RRX.Runtime
             _runner.OnResetRequested += OnResetRequested;
             _target = _runner.CurrentPatientVisual;
             _current = _target;
+            _hasReceivedSnapshot = true;
             ApplyPose(_current, 0f);
         }
 
@@ -82,6 +85,13 @@ namespace RRX.Runtime
 
         void Update()
         {
+            if (!_hasReceivedSnapshot && _runner != null)
+            {
+                _target = _runner.CurrentPatientVisual;
+                _current = _target;
+                _hasReceivedSnapshot = true;
+            }
+
             if (_snapshotLerpSeconds <= 0f)
             {
                 _current = _target;
@@ -104,6 +114,7 @@ namespace RRX.Runtime
         {
             _target = snapshot;
             _lerpTimer = 0f;
+            _hasReceivedSnapshot = true;
         }
 
         void OnStateChanged(ScenarioState state)
@@ -122,6 +133,7 @@ namespace RRX.Runtime
             _rollAngleTarget = 0f;
             _snapshotLerpSeconds = 0.4f;
             transform.localRotation = _rootBaseRotation;
+            _hasReceivedSnapshot = false;
         }
 
         // Substrings that identify skin-coloured renderers in the detailed anatomy hierarchy.
@@ -167,9 +179,18 @@ namespace RRX.Runtime
         void ApplyBreathingBob(in PatientVisualState state, float now)
         {
             if (_torso == null) return;
-            float amplitude = Mathf.Lerp(0.004f, 0.018f, Mathf.Clamp01(state.BreathRate));
-            float speed     = Mathf.Lerp(0.8f, 3.5f, Mathf.Clamp01(state.BreathRate));
-            float bob       = Mathf.Sin(now * speed * Mathf.PI * 2f) * amplitude;
+            var breath01 = Mathf.Clamp01(state.BreathRate);
+            float amplitude = state.IsApnea ? 0f : Mathf.Lerp(0.004f, 0.018f, breath01);
+            float speed = state.IsApnea ? 0f : Mathf.Lerp(0.8f, 3.5f, breath01);
+            float bob = state.IsApnea ? 0f : Mathf.Sin(now * speed * Mathf.PI * 2f) * amplitude;
+
+            if (state.IsApnea && _enableApneaGasp)
+            {
+                var gaspWave = Mathf.Sin(now * 0.33f * Mathf.PI * 2f);
+                if (gaspWave > 0.85f)
+                    bob += (gaspWave - 0.85f) / 0.15f * 0.0018f;
+            }
+
             _torso.localPosition = _torsoBasePosition + new Vector3(0f, bob, 0f) + _tremorOffset;
         }
 

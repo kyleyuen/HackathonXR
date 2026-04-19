@@ -76,7 +76,7 @@ namespace RRX.Core
                     break;
             }
 
-            return failureCount > 0 ? $"{hint}  Mistakes: {failureCount}/3" : hint;
+            return hint;
         }
 
         /// <summary>Backwards-compatible hint (returns specific hint always).</summary>

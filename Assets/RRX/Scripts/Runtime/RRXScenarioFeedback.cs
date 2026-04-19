@@ -1,7 +1,8 @@
 using RRX.Core;
 using RRX.UI;
-using System.Reflection;
 using UnityEngine;
+using UnityEngine.Audio;
+using UnityEngine.XR;
 using UnityEngine.XR.Interaction.Toolkit;
 
 namespace RRX.Runtime
@@ -14,11 +15,13 @@ namespace RRX.Runtime
         [SerializeField] RRXProceduralAudio _audioBank;
         [SerializeField] AudioSource _audioSource;
         [SerializeField] RRXWristObjectivePanel _wristPanel;
+        [SerializeField] AudioMixerGroup _sfxMixerGroup;
 
         [SerializeField] float _okHapticAmplitude = 0.35f;
         [SerializeField] float _okHapticDuration = 0.08f;
         [SerializeField] float _badHapticAmplitude = 0.65f;
         [SerializeField] float _badHapticDuration = 0.12f;
+        public static event System.Action<float> FeedbackPlayed;
 
         void Awake()
         {
@@ -30,6 +33,8 @@ namespace RRX.Runtime
                 _audioSource = GetComponent<AudioSource>();
             if (_wristPanel == null)
                 _wristPanel = FindObjectOfType<RRXWristObjectivePanel>();
+            if (_audioSource != null && _sfxMixerGroup != null)
+                _audioSource.outputAudioMixerGroup = _sfxMixerGroup;
         }
 
         void OnEnable()
@@ -57,7 +62,8 @@ namespace RRX.Runtime
             bool ok = result == ScenarioSubmissionResult.Accepted;
             if (ok)
             {
-                PlayClip(_audioBank != null ? _audioBank.ClipOk : null, 0.75f);
+                if (_runner == null || _runner.CurrentState != ScenarioState.Recovery)
+                    PlayClip(_audioBank != null ? _audioBank.ClipOk : null, 0.75f);
                 SendHaptic(submission.Interactor, _okHapticAmplitude, _okHapticDuration);
             }
             else
@@ -86,20 +92,22 @@ namespace RRX.Runtime
             if (clip == null || _audioSource == null)
                 return;
             _audioSource.PlayOneShot(clip, volumeScale);
+            FeedbackPlayed?.Invoke(0.2f);
         }
 
         static void SendHaptic(XRBaseInteractor interactor, float amplitude, float duration)
         {
             if (interactor == null)
                 return;
-            var send = interactor.GetType().GetMethod(
-                "SendHapticImpulse",
-                BindingFlags.Instance | BindingFlags.Public,
-                null,
-                new[] { typeof(float), typeof(float) },
-                null);
-            if (send != null)
-                send.Invoke(interactor, new object[] { amplitude, duration });
+
+            var node = XRNode.RightHand;
+            var lower = interactor.gameObject.name.ToLowerInvariant();
+            if (lower.Contains("left"))
+                node = XRNode.LeftHand;
+
+            var dev = InputDevices.GetDeviceAtXRNode(node);
+            if (dev.isValid)
+                dev.SendHapticImpulse(0u, Mathf.Clamp01(amplitude), Mathf.Max(0f, duration));
         }
     }
 }
