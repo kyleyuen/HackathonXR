@@ -1,4 +1,5 @@
 using RRX.Core;
+using RRX.Runtime;
 using UnityEngine;
 using Unity.XR.CoreUtils;
 
@@ -19,10 +20,13 @@ namespace RRX.Environment
         [SerializeField] float _showDistanceMeters = 16f;
         [SerializeField] float _hideDistanceMeters = 19f;
         [SerializeField] float _playerExclusionRadiusMeters = 0.5f;
+        [SerializeField] float _crowdAmbienceVolume = 0.42f;
+        [SerializeField] bool _crowdAmbienceEnabled = true;
 
         Transform _camera;
         Pedestrian[] _peds;
         Material _sharedBodyMat;
+        AudioSource _ambience;
         static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
         static readonly int ColorId = Shader.PropertyToID("_Color");
 
@@ -32,6 +36,37 @@ namespace RRX.Environment
             public Renderer[] Renderers;
             public Vector3 Target;
             public float Speed;
+        }
+
+        void Awake()
+        {
+            if (Application.isPlaying)
+            {
+                if (PlayerPrefs.HasKey("rrx_crowd_amb_vol"))
+                    _crowdAmbienceVolume = Mathf.Clamp01(PlayerPrefs.GetFloat("rrx_crowd_amb_vol"));
+                if (PlayerPrefs.HasKey("rrx_crowd_amb_en"))
+                    _crowdAmbienceEnabled = PlayerPrefs.GetInt("rrx_crowd_amb_en") != 0;
+            }
+
+            _ambience = GetComponent<AudioSource>();
+            if (_ambience == null)
+                _ambience = gameObject.AddComponent<AudioSource>();
+            _ambience.loop = true;
+            _ambience.playOnAwake = false;
+            _ambience.spatialBlend = 0f;
+            _ambience.dopplerLevel = 0f;
+            _ambience.priority = 196;
+        }
+
+        void OnEnable()
+        {
+            EnsureAmbienceClipAndPlay();
+        }
+
+        void OnDisable()
+        {
+            if (_ambience != null)
+                _ambience.Stop();
         }
 
         void Start()
@@ -85,6 +120,50 @@ namespace RRX.Environment
                     Speed = Random.Range(_walkSpeedMin, _walkSpeedMax),
                 };
             }
+
+            EnsureAmbienceClipAndPlay();
+        }
+
+        void EnsureAmbienceClipAndPlay()
+        {
+            if (_ambience == null)
+                return;
+
+            if (_ambience.clip == null)
+            {
+                var banks = FindObjectsByType<RRXProceduralAudio>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+                var bank = banks != null && banks.Length > 0 ? banks[0] : null;
+                if (bank == null)
+                    bank = gameObject.AddComponent<RRXProceduralAudio>();
+                if (bank.ClipCrowdAmbience != null)
+                    _ambience.clip = bank.ClipCrowdAmbience;
+            }
+
+            ApplyCrowdAmbience();
+        }
+
+        void ApplyCrowdAmbience()
+        {
+            if (_ambience == null || _ambience.clip == null)
+                return;
+
+            var vol = _crowdAmbienceEnabled ? Mathf.Clamp01(_crowdAmbienceVolume) : 0f;
+            _ambience.volume = vol;
+            if (vol > 0.0005f)
+            {
+                if (!_ambience.isPlaying)
+                    _ambience.Play();
+            }
+            else
+                _ambience.Stop();
+        }
+
+        void PersistCrowdAmbiencePrefs()
+        {
+            if (!Application.isPlaying)
+                return;
+            PlayerPrefs.SetFloat("rrx_crowd_amb_vol", _crowdAmbienceVolume);
+            PlayerPrefs.SetInt("rrx_crowd_amb_en", _crowdAmbienceEnabled ? 1 : 0);
         }
 
         void ApplyColor(Renderer r, Color c)
@@ -281,6 +360,28 @@ namespace RRX.Environment
         {
             get => _hideDistanceMeters;
             set => _hideDistanceMeters = Mathf.Max(_showDistanceMeters + 0.25f, value);
+        }
+
+        public bool CrowdAmbienceEnabled
+        {
+            get => _crowdAmbienceEnabled;
+            set
+            {
+                _crowdAmbienceEnabled = value;
+                PersistCrowdAmbiencePrefs();
+                ApplyCrowdAmbience();
+            }
+        }
+
+        public float CrowdAmbienceVolume
+        {
+            get => _crowdAmbienceVolume;
+            set
+            {
+                _crowdAmbienceVolume = Mathf.Clamp01(value);
+                PersistCrowdAmbiencePrefs();
+                ApplyCrowdAmbience();
+            }
         }
     }
 }
