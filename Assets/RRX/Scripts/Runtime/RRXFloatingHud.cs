@@ -436,6 +436,7 @@ namespace RRX.UI
                 });
 
             AddPlaceholderButton(card.transform, "Reposition patient in front", RepositionPatientInFront);
+            AddPlaceholderButton(card.transform, "Re-anchor world here", OnReanchorWorldClicked);
 
             AddNumericStepperRow(card.transform, "Crowd clearance (m)", 0.05f, 3f, 0.05f,
                 () => _mallCrowd != null ? _mallCrowd.PlayerExclusionRadiusMeters : 0.5f,
@@ -504,6 +505,12 @@ namespace RRX.UI
             tmp.fontSize = 18;
             tmp.alignment = TextAlignmentOptions.Center;
             tmp.color = new Color(0.85f, 0.88f, 0.92f, 0.88f);
+        }
+
+        void OnReanchorWorldClicked()
+        {
+            RRXWorldAnchorService.AnchorNow();
+            ShowToast("World re-anchored around your current position.");
         }
 
         void RepositionPatientInFront()
@@ -988,6 +995,10 @@ namespace RRX.UI
 
         void OnStartClicked()
         {
+            // Re-anchor the mall + patient + ambience to wherever the player is actually standing /
+            // facing right now, so the scene builds around them even if they've moved since scene load.
+            RRXWorldAnchorService.AnchorNow();
+
             SetSplitMenuVisible(true);
             if (_mainMenuPanel != null)
                 _mainMenuPanel.SetActive(false);

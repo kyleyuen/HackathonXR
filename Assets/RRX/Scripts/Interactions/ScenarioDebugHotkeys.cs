@@ -26,15 +26,12 @@ namespace RRX.Interactions
                     Submit(ScenarioAction.OpenAirway);
                     break;
                 case 4:
-                    Submit(ScenarioAction.CheckBreathing);
-                    break;
-                case 5:
                     Submit(ScenarioAction.Call911);
                     break;
-                case 6:
+                case 5:
                     Submit(ScenarioAction.AdministerNarcan);
                     break;
-                case 7:
+                case 6:
                     Submit(ScenarioAction.RecoveryPosition);
                     break;
             }
@@ -70,8 +67,6 @@ namespace RRX.Interactions
                 HandleNumberedAction(5);
             if (kb.digit6Key.wasPressedThisFrame)
                 HandleNumberedAction(6);
-            if (kb.digit7Key.wasPressedThisFrame)
-                HandleNumberedAction(7);
             if (kb.rKey.wasPressedThisFrame)
                 _runner.RewindPreviousCheckpoint();
 #else
@@ -87,8 +82,6 @@ namespace RRX.Interactions
                 HandleNumberedAction(5);
             if (Input.GetKeyDown(KeyCode.Alpha6))
                 HandleNumberedAction(6);
-            if (Input.GetKeyDown(KeyCode.Alpha7))
-                HandleNumberedAction(7);
             if (Input.GetKeyDown(KeyCode.R))
                 _runner.RewindPreviousCheckpoint();
 #endif

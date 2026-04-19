@@ -256,9 +256,7 @@ namespace RRX.Core
                     _state = ScenarioState.OpenAirway;
                     break;
                 case ScenarioState.OpenAirway when action == ScenarioAction.OpenAirway:
-                    _state = ScenarioState.CheckBreathing;
-                    break;
-                case ScenarioState.CheckBreathing when action == ScenarioAction.CheckBreathing:
+                    // Auto-chain: opening the airway implicitly completes the breathing check in one click.
                     _state = ScenarioState.CallForHelp;
                     break;
                 case ScenarioState.CallForHelp when action == ScenarioAction.Call911:

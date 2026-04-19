@@ -21,6 +21,7 @@ namespace RRX.Runtime
             StripLocomotionAndPhysics();
             RRXRigInteractionSetup.ConfigureSceneEventSystems();
             EnsureRigAnchor();
+            EnsureWorldAnchorService();
         }
 
         IEnumerator Start()
@@ -54,6 +55,15 @@ namespace RRX.Runtime
         {
             if (GetComponent<RRXRigAnchor>() == null)
                 gameObject.AddComponent<RRXRigAnchor>();
+        }
+
+        static void EnsureWorldAnchorService()
+        {
+            if (FindObjectOfType<RRXWorldAnchorService>() != null)
+                return;
+
+            var host = new GameObject("RRX_WorldAnchor");
+            host.AddComponent<RRXWorldAnchorService>();
         }
 
         void EnableAllInputActions()

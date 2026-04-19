@@ -39,7 +39,7 @@ namespace RRX.Core
             {
                 case ScenarioHotspotId.SceneScan:   return ScenarioState.Arrival;
                 case ScenarioHotspotId.Shoulder:    return ScenarioState.OpenAirway;
-                case ScenarioHotspotId.Chin:        return ScenarioState.CheckBreathing;
+                case ScenarioHotspotId.Chin:        return ScenarioState.CallForHelp;
                 case ScenarioHotspotId.Mouth:       return ScenarioState.CallForHelp;
                 case ScenarioHotspotId.Phone:       return ScenarioState.AdministerNarcan;
                 case ScenarioHotspotId.Nose:        return ScenarioState.RecoveryPosition;

@@ -7,13 +7,13 @@ namespace RRX.Core
         {
             switch (state)
             {
-                case ScenarioState.SceneSafety:         return "Step 1/7 – Scene Safety";
-                case ScenarioState.Arrival:             return "Step 2/7 – Check Response";
-                case ScenarioState.OpenAirway:          return "Step 3/7 – Open Airway";
-                case ScenarioState.CheckBreathing:      return "Step 4/7 – Check Breathing";
-                case ScenarioState.CallForHelp:         return "Step 5/7 – Call for Help";
-                case ScenarioState.AdministerNarcan:    return "Step 6/7 – Administer Narcan";
-                case ScenarioState.RecoveryPosition:    return "Step 7/7 – Recovery Position";
+                case ScenarioState.SceneSafety:         return "Step 1/6 – Scene Safety";
+                case ScenarioState.Arrival:             return "Step 2/6 – Check Response";
+                case ScenarioState.OpenAirway:          return "Step 3/6 – Open Airway";
+                case ScenarioState.CheckBreathing:      return "Step 3/6 – Open Airway";
+                case ScenarioState.CallForHelp:         return "Step 4/6 – Call for Help";
+                case ScenarioState.AdministerNarcan:    return "Step 5/6 – Administer Narcan";
+                case ScenarioState.RecoveryPosition:    return "Step 6/6 – Recovery Position";
                 case ScenarioState.Recovery:            return "Patient Recovering";
                 case ScenarioState.CriticalFailure:     return "Critical Failure";
                 default:                               return "Scenario";
@@ -27,8 +27,8 @@ namespace RRX.Core
             {
                 case ScenarioState.SceneSafety:         return "Is the area safe to approach?";
                 case ScenarioState.Arrival:             return "Are they conscious? Check for a response.";
-                case ScenarioState.OpenAirway:          return "Their airway needs to be opened.";
-                case ScenarioState.CheckBreathing:      return "Look, listen, and feel for breathing.";
+                case ScenarioState.OpenAirway:          return "Tilt the head back to open their airway.";
+                case ScenarioState.CheckBreathing:      return "Tilt the head back to open their airway.";
                 case ScenarioState.CallForHelp:         return "This is an emergency. Get help now.";
                 case ScenarioState.AdministerNarcan:    return "Administer the reversal agent.";
                 case ScenarioState.RecoveryPosition:    return "Protect their airway. Position them safely.";
@@ -51,10 +51,10 @@ namespace RRX.Core
                     hint = "Point at the shoulder and press trigger to check responsiveness.";
                     break;
                 case ScenarioState.OpenAirway:
-                    hint = "Point at the chin and press trigger to tilt the head back.";
+                    hint = "Point at the chin/throat and press trigger to tilt the head back.";
                     break;
                 case ScenarioState.CheckBreathing:
-                    hint = "Point at the mouth and press trigger to check for breathing.";
+                    hint = "Point at the chin/throat and press trigger to tilt the head back.";
                     break;
                 case ScenarioState.CallForHelp:
                     hint = "Point at the phone and press trigger to call 911.";

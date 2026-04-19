@@ -45,6 +45,17 @@ namespace RRX.Runtime
             _anchorRotation = transform.rotation;
         }
 
+        /// <summary>
+        /// Force the anchor to re-sample the current rig pose. Call this after the world has been
+        /// relocated (e.g. by <see cref="RRXWorldAnchorService"/>) so the clamp target matches the
+        /// new rig-relative baseline instead of snapping back to the pre-move pose.
+        /// </summary>
+        public void ReCapture()
+        {
+            CaptureAnchor();
+            _anchorReady = true;
+        }
+
         void LateUpdate()
         {
             if (!_anchorReady)

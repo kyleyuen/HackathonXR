@@ -105,36 +105,28 @@ namespace RRX.Editor
 
             // Each pip sits exactly on the named anatomical landmark.
             // The invisible BoxCollider (colliderSize) is kept generous for comfortable Quest aiming.
-            const float Pip = 0.02f; // visual pip radius (m)
+            const float Pip = 0.05f; // visual pip radius (m) — large enough to see clearly in passthrough
 
             BuildHotspotWithPip(root.transform, "Hotspot_Shoulder",
                 localCenter:   new Vector3(-0.24f, 0.22f, TorsoLocalZ - 0.20f),
                 pipRadius:     Pip,
-                colliderSize:  new Vector3(0.22f, 0.22f, 0.22f),
+                colliderSize:  new Vector3(0.45f, 0.45f, 0.45f),
                 pipMat:        pipMat,
                 hotspotId:     ScenarioHotspotId.Shoulder,
                 runner:        runner);
 
             BuildHotspotWithPip(root.transform, "Hotspot_Chin",
-                localCenter:   new Vector3(0f, 0.04f, HeadLocalZ + 0.12f),
+                localCenter:   new Vector3(0f, 0.07f, HeadLocalZ + 0.18f),
                 pipRadius:     Pip,
-                colliderSize:  new Vector3(0.17f, 0.15f, 0.15f),
+                colliderSize:  new Vector3(0.45f, 0.42f, 0.52f),
                 pipMat:        pipMat,
                 hotspotId:     ScenarioHotspotId.Chin,
-                runner:        runner);
-
-            BuildHotspotWithPip(root.transform, "Hotspot_Mouth",
-                localCenter:   new Vector3(0f, 0.14f, HeadLocalZ + 0.08f),
-                pipRadius:     Pip,
-                colliderSize:  new Vector3(0.17f, 0.14f, 0.14f),
-                pipMat:        pipMat,
-                hotspotId:     ScenarioHotspotId.Mouth,
                 runner:        runner);
 
             BuildHotspotWithPip(root.transform, "Hotspot_NasalNarcan",
                 localCenter:   new Vector3(0f, 0.26f, HeadLocalZ + 0.04f),
                 pipRadius:     Pip,
-                colliderSize:  new Vector3(0.15f, 0.15f, 0.15f),
+                colliderSize:  new Vector3(0.30f, 0.30f, 0.30f),
                 pipMat:        pipMat,
                 hotspotId:     ScenarioHotspotId.Nose,
                 runner:        runner);
@@ -142,7 +134,7 @@ namespace RRX.Editor
             BuildHotspotWithPip(root.transform, "Hotspot_Hip",
                 localCenter:   new Vector3(0.23f, 0.24f, PelvisLocalZ - 0.03f),
                 pipRadius:     Pip,
-                colliderSize:  new Vector3(0.22f, 0.20f, 0.20f),
+                colliderSize:  new Vector3(0.45f, 0.40f, 0.40f),
                 pipMat:        pipMat,
                 hotspotId:     ScenarioHotspotId.Hip,
                 runner:        runner);
@@ -617,13 +609,13 @@ namespace RRX.Editor
             if (shader == null) shader = Shader.Find("Sprites/Default");
 
             var mat       = new Material(shader);
-            var baseColor = new Color(1.0f, 0.92f, 0.75f);
+            var baseColor = new Color(1.0f, 1.0f, 0.6f);
             if (mat.HasProperty("_Color"))     mat.color = baseColor;
             if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", baseColor);
 
             mat.EnableKeyword("_EMISSION");
             if (mat.HasProperty("_EmissionColor"))
-                mat.SetColor("_EmissionColor", new Color(0.40f, 0.30f, 0.14f));
+                mat.SetColor("_EmissionColor", new Color(1.0f, 0.85f, 0.0f));  // bright yellow glow
             mat.globalIlluminationFlags = MaterialGlobalIlluminationFlags.RealtimeEmissive;
 
             EnsureMaterialFolder();

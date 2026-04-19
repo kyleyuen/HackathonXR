@@ -6,6 +6,7 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using Unity.XR.CoreUtils;
 
 namespace RRX.Editor
 {
@@ -16,6 +17,7 @@ namespace RRX.Editor
     static class RRXCubeBlockoutMenu
     {
         const string MatFolder = "Assets/RRX/Materials";
+        const string AnchorToRigPrefKey = "RRX.AnchorEnvironmentToRig";
 
         const int DodecagonSides = 12;
         const int BoundarySegments = 12;
@@ -44,6 +46,29 @@ namespace RRX.Editor
         static void GenerateBlockoutMenu()
         {
             RunBlockoutGeneration();
+        }
+
+        [MenuItem("RRX/Settings/Anchor Environment To XR Rig Location", false, 5)]
+        [MenuItem("Window/RRX/Settings/Anchor Environment To XR Rig Location", false, 5)]
+        static void ToggleAnchorEnvironmentToRig()
+        {
+            bool next = !IsAnchorToRigEnabled();
+            EditorPrefs.SetBool(AnchorToRigPrefKey, next);
+            Menu.SetChecked("RRX/Settings/Anchor Environment To XR Rig Location", next);
+            Menu.SetChecked("Window/RRX/Settings/Anchor Environment To XR Rig Location", next);
+            Debug.Log(next
+                ? "[RRX] Environment anchoring enabled: future blockouts center on XR rig location."
+                : "[RRX] Environment anchoring disabled: blockouts stay at world origin.");
+        }
+
+        [MenuItem("RRX/Settings/Anchor Environment To XR Rig Location", true)]
+        [MenuItem("Window/RRX/Settings/Anchor Environment To XR Rig Location", true)]
+        static bool ToggleAnchorEnvironmentToRigValidate()
+        {
+            bool enabled = IsAnchorToRigEnabled();
+            Menu.SetChecked("RRX/Settings/Anchor Environment To XR Rig Location", enabled);
+            Menu.SetChecked("Window/RRX/Settings/Anchor Environment To XR Rig Location", enabled);
+            return true;
         }
 
         [MenuItem("RRX/Generate MR Cube Blockout", false, 41)]
@@ -111,6 +136,8 @@ namespace RRX.Editor
                 Undo.RegisterCreatedObjectUndo(root, "RRX Environment Root");
             }
 
+            ApplyRootAnchorToRigIfEnabled(root.transform);
+
             ClearEnvironmentChildren(root.transform);
 
             BuildFloorPhysicsDisc(root.transform, discR, t);
@@ -133,6 +160,30 @@ namespace RRX.Editor
             EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
             Debug.Log(
                 $"[RRX] Dodecagon mall generated with MR center domain radius {discR:0.##}m (translucent virtual tiles in center let ~70% passthrough bleed through). Save the scene.");
+        }
+
+        static bool IsAnchorToRigEnabled()
+        {
+            // Default ON: running generation should place the whole mall around the user's current rig position.
+            return EditorPrefs.GetBool(AnchorToRigPrefKey, true);
+        }
+
+        static void ApplyRootAnchorToRigIfEnabled(Transform root)
+        {
+            if (!IsAnchorToRigEnabled() || root == null)
+                return;
+
+            var xrOrigin = UnityEngine.Object.FindObjectOfType<XROrigin>();
+            if (xrOrigin == null)
+            {
+                Debug.LogWarning("[RRX] Anchor-to-rig is enabled, but no XROrigin was found. Using current environment root position.");
+                return;
+            }
+
+            var anchored = xrOrigin.transform.position;
+            anchored.y = 0f;
+            root.position = anchored;
+            root.rotation = Quaternion.identity;
         }
 
         /// <summary>Edge bisector angle (XZ): midpoint of edge i lies at apothem * unit direction.</summary>
